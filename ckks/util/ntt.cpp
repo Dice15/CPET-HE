@@ -82,6 +82,17 @@ namespace cpet
         return true;
     }
 
+    bool try_inverse_minimal_primitive_root(const PolyModulus& poly_modulus, const Modulus& modulus, uint64_t& destination)
+    {
+        uint64_t root;
+
+        try_minimal_primitive_root(poly_modulus, modulus, root);
+
+        destination = inverse_mod(root, modulus.value());
+
+        return true;
+    }
+
     void create_ntt_table(const PolyModulus& poly_modulus, std::vector<uint64_t>& destination)
     {
         // Assign ntt table
@@ -105,91 +116,104 @@ namespace cpet
         }
     }
 
-    void ntt(CycloModRing& ring, uint64_t omega)
+    void ntt(RnsCycloRing& ring, const std::vector<uint64_t>& omegas)
     {
         // Get ring data.
-        const PolyModulus& poly_modulus = ring.poly_modulus();
-        const Modulus& modulus = ring.modulus();
+        const auto& poly_modulus = ring.poly_modulus();
+        const auto& moduli = *ring.moduli();
 
 
         // Rearrange ring's coeff using ntt table.
         std::vector<uint64_t> ntt_table;
         create_ntt_table(poly_modulus, ntt_table);
 
-        for (uint64_t i = 1; i < poly_modulus.degree(); i++)
+        for (uint64_t m = 0; m < moduli.size(); m++)
         {
-            uint64_t j = ntt_table[i];
-
-            if (i < j)
+            for (uint64_t i = 1; i < poly_modulus.degree(); i++)
             {
-                uint64_t coeff_i = ring(i);
-                ring(i, ring(j));
-                ring(j, coeff_i);
-            }
-        }
+                uint64_t j = ntt_table[i];
 
-       
-        // X[k] = ∑x[j]*ω^(jk), for all k,j ∈ {0, ... , n-1}
-        // We will use Cooley-Tukey algorithm for NTT.
-        for (uint64_t len = 2; len <= poly_modulus.degree(); len <<= 1) 
-        {
-            uint64_t wlen = pow_mod(omega, poly_modulus.degree() / len, modulus.value());
-
-            for (size_t i = 0; i < poly_modulus.degree(); i += len)
-            {
-                uint64_t w = 1;
-
-                for (size_t j = 0; j < (len >> 1); j++) 
+                if (i < j)
                 {
-                    uint64_t u = ring(i + j);
-                    uint64_t v = mul_mod(ring(i + j + (len >> 1)), w, modulus.value());
+                    uint64_t coeff = ring(m, i);
+                    ring(m, i, ring(m, j));
+                    ring(m, j, coeff);
 
-                    ring(i + j, add_mod(u, v, modulus.value()));
-                    ring(i + j + (len >> 1), sub_mod(u, v, modulus.value()));
-
-                    w = mul_mod(w, wlen, modulus.value());
                 }
             }
         }
+
+
+        // X[k] = ∑x[j]*ω^(jk), for all k,j ∈ {0, ... , n-1}
+        // We will use Cooley-Tukey algorithm for NTT.
+        for (uint64_t m = 0; m < moduli.size(); m++)
+        {
+            for (uint64_t len = 2; len <= poly_modulus.degree(); len <<= 1)
+            {
+                uint64_t wlen = pow_mod(omegas[m], poly_modulus.degree() / len, moduli[m].value());
+
+                for (size_t i = 0; i < poly_modulus.degree(); i += len)
+                {
+                    uint64_t w = 1;
+
+                    for (size_t j = 0; j < (len >> 1); j++)
+                    {
+                        uint64_t u = ring(m, i + j);
+                        uint64_t v = mul_mod(ring(m, i + j + (len >> 1)), w, moduli[m].value());
+
+                        ring(m, i + j, add_mod(u, v, moduli[m].value()));
+                        ring(m, i + j + (len >> 1), sub_mod(u, v, moduli[m].value()));
+
+                        w = mul_mod(w, wlen, moduli[m].value());
+                    }
+                }
+            }
+        }    
     }
 
-    void inverse_ntt(CycloModRing& ring, uint64_t omega)
+    void inverse_ntt(RnsCycloRing& ring, const std::vector<uint64_t>& inv_omegas)
     {
         // Get ring data.
-        const PolyModulus& poly_modulus = ring.poly_modulus();
-        const Modulus& modulus = ring.modulus();
+        const auto& poly_modulus = ring.poly_modulus();
+        const auto& moduli = *ring.moduli();
 
 
         // X[k] = 1/n * {∑x[j]*ω^(-jk)}, for all k,j ∈ {0, ... , n-1}
         // So, use ω^-1 as Standard NTT's ω for INTT.
-        uint64_t inv_omega = inverse_mod(omega, modulus.value());
-        ntt(ring, inv_omega);
+        ntt(ring, inv_omegas);
 
 
         // Scaling coeff to 1/n * coeff
-        uint64_t n_inv = inverse_mod(poly_modulus.degree(), modulus.value());
-
-        for (size_t i = 0; i < poly_modulus.degree(); i++)
+        for (uint64_t m = 0; m < moduli.size(); m++)
         {
-            ring(i, mul_mod(ring(i), n_inv, modulus.value()));
+            uint64_t n_inv = inverse_mod(poly_modulus.degree(), moduli[m].value());
+
+            for (size_t i = 0; i < poly_modulus.degree(); i++)
+            {
+                ring(m, i, mul_mod(ring(m, i), n_inv, moduli[m].value()));
+            }
         }
     }
 
-    void ntt_negacyclic(CycloModRing& ring)
+    void ntt_negacyclic(RnsCycloRing& ring)
     {
         // Get ring data.
-        const PolyModulus& poly_modulus_n = ring.poly_modulus();
-        const Modulus& modulus = ring.modulus();
+        const auto& poly_modulus_n = ring.poly_modulus();
+        const auto& moduli = *ring.moduli();
 
 
         // Find 2n-th primitive root(ζ). 
-        uint64_t zeta;
+        std::vector<uint64_t> zetas(moduli.size());
         const PolyModulus poly_modulus_2n(2 * poly_modulus_n.degree());
 
-        if (!try_minimal_primitive_root(poly_modulus_2n, ring.modulus(), zeta))
+        for (uint64_t m = 0; m < moduli.size(); m++)
         {
-            throw std::logic_error("Failed to find minimal primitive root for NTT negacyclic.");
+            if (!try_minimal_primitive_root(poly_modulus_2n, moduli[m], zetas[m]))
+            {
+                throw std::logic_error("Failed to find minimal primitive root for NTT negacyclic.");
+            }
         }
+
 
         //std::cout << "\n2n-th primitive root for ntt negacyclic: " << zeta << "\n";
 
@@ -203,32 +227,41 @@ namespace cpet
         // X[n-1] = x[0]*ζ^(0*(2n-1)) + x[1]*ζ^(1*(2n-1)) + x[2]*ζ^(2*(2n-1)) ... + x[n-1]*ζ^((n-1)*(2n-1))
         // 
         // So, multiply ζ^j to ring's all coeff and use ζ²as Standard NTT's ω.
-        uint64_t zeta_pow = 1;
+        std::vector<uint64_t> omegas(moduli.size());
 
-        for (uint64_t j = 0; j < poly_modulus_n.degree(); j++)
+        for (uint64_t m = 0; m < moduli.size(); m++)
         {
-            ring(j, mul_mod(ring(j), zeta_pow, modulus.value()));
-            zeta_pow = mul_mod(zeta_pow, zeta, modulus.value());
+            uint64_t zeta_pow = 1;
+
+            for (uint64_t i = 0; i < poly_modulus_n.degree(); i++)
+            {
+                ring(m, i, mul_mod(ring(m, i), zeta_pow, moduli[m].value()));
+                zeta_pow = mul_mod(zeta_pow, zetas[m], moduli[m].value());
+            }
+
+            omegas[m] = pow_mod(zetas[m], 2, moduli[m].value());
         }
 
-        uint64_t omega = pow_mod(zeta, 2, modulus.value());
-        ntt(ring, omega);
+        ntt(ring, omegas);
     }
 
-    void inverse_ntt_negacyclic(CycloModRing& ring)
+    void inverse_ntt_negacyclic(RnsCycloRing& ring)
     {
         // Get ring data.
-        const PolyModulus& poly_modulus_n = ring.poly_modulus();
-        const Modulus& modulus = ring.modulus();
+        const auto& poly_modulus_n = ring.poly_modulus();
+        const auto& moduli = *ring.moduli();
 
 
         // Find 2n-th primitive root(ζ).
-        uint64_t zeta;
+        std::vector<uint64_t> inv_zetas(moduli.size());
         const PolyModulus poly_modulus_2n(2 * poly_modulus_n.degree());
 
-        if (!try_minimal_primitive_root(poly_modulus_2n, modulus, zeta))
+        for (uint64_t m = 0; m < moduli.size(); m++)
         {
-            throw std::logic_error("Failed to find minimal primitive root for inverse NTT negacyclic.");
+            if (!try_inverse_minimal_primitive_root(poly_modulus_2n, moduli[m], inv_zetas[m]))
+            {
+                throw std::logic_error("Failed to find minimal primitive root for NTT negacyclic.");
+            }
         }
 
 
@@ -242,16 +275,24 @@ namespace cpet
         // x[n-1] = 1/n * {X[0]*ζ^-(0*(2n-1)) + X[1]*ζ^-(1*(2n-1)) + X[2]*ζ^-(2*(2n-1)) ... + X[n-1]*ζ^-((n-1)*(2n-1))}
         // 
         // So, use ζ²as Standard INTT's ω and multiply ζ^-j to ring's all coeff.
-        uint64_t omega = pow_mod(zeta, 2, modulus.value());
-        inverse_ntt(ring, omega);
+        std::vector<uint64_t> inv_omegas(moduli.size());
 
-        uint64_t inv_zeta = inverse_mod(zeta, modulus.value());
-        uint64_t inv_zeta_pow = 1;
-
-        for (uint64_t j = 0; j < poly_modulus_n.degree(); j++)
+        for (uint64_t m = 0; m < moduli.size(); m++)
         {
-            ring(j, mul_mod(ring(j), inv_zeta_pow, modulus.value()));
-            inv_zeta_pow = mul_mod(inv_zeta_pow, inv_zeta, modulus.value());
+            inv_omegas[m] = pow_mod(inv_zetas[m], 2, moduli[m].value());
+        }
+
+        inverse_ntt(ring, inv_omegas);
+
+        for (uint64_t m = 0; m < moduli.size(); m++)
+        {
+            uint64_t inv_zeta_pow = 1;
+
+            for (uint64_t j = 0; j < poly_modulus_n.degree(); j++)
+            {
+                ring(m, j, mul_mod(ring(m, j), inv_zeta_pow, moduli[m].value()));
+                inv_zeta_pow = mul_mod(inv_zeta_pow, inv_zetas[m], moduli[m].value());
+            }
         }
     }
 }

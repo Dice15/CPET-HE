@@ -113,7 +113,7 @@ namespace cpet
         return true;
     }
 
-    void try_prime(const uint64_t factor, const uint64_t bit_size, uint64_t& destination)
+    void try_prime(uint64_t factor, uint64_t bit_size, uint64_t& destination)
     {
         if (bit_size > 60 || bit_size < 2)
         {
@@ -125,12 +125,12 @@ namespace cpet
         uint64_t lower_bound = static_cast<uint64_t>(1) << (bit_size - 1);
         bool found = false;
 
-        while (candidate > lower_bound)
+        while (!found && candidate > lower_bound)
         {
             if (is_prime(candidate))
             {
+                destination = candidate;
                 found = true;
-                break;
             }
 
             candidate -= factor;
@@ -138,9 +138,37 @@ namespace cpet
 
         if (found == false)
         {
-            throw std::logic_error("failed to find enough qualifying primes");
+            throw std::logic_error("failed to find enough qualifying prime");
+        }
+    }
+
+    void try_primes(const uint64_t factor, const uint64_t bit_size, uint64_t count, std::vector<uint64_t>& destination)
+    {
+        if (bit_size > 60 || bit_size < 2)
+        {
+            throw std::invalid_argument("The prime number must be greater than or equal to 2 and less than or equal to 60 bits.");
         }
 
-        destination = candidate;
+        // (2^bit_size - 1) / factor * factor + 1 부터 factor를 빼면서 소수를 찾음.
+        uint64_t candidate = ((static_cast<uint64_t>(1) << bit_size) - 1) / factor * factor + 1;
+        uint64_t lower_bound = static_cast<uint64_t>(1) << (bit_size - 1);
+      
+        destination.clear();
+
+        while (count >0 && candidate > lower_bound)
+        {
+            if (is_prime(candidate))
+            {
+                destination.push_back(candidate);
+                count--;
+            }
+
+            candidate -= factor;
+        }
+
+        if (count > 0)
+        {
+            throw std::logic_error("failed to find enough qualifying primes");
+        }
     }
 }

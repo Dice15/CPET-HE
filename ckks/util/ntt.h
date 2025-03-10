@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <vector>
-#include "cyclomodring.h"
+#include "rnscycloring.h"
 #include "polymodulus.h"
 #include "modulus.h"
 
@@ -15,9 +15,15 @@ namespace cpet
 
     bool try_minimal_primitive_root(const PolyModulus& poly_modulus, const Modulus& modulus, uint64_t& destination);
 
+    bool try_inverse_minimal_primitive_root(const PolyModulus& poly_modulus, const Modulus& modulus, uint64_t& destination);
+
     void create_ntt_table(const PolyModulus& poly_modulus, std::vector<uint64_t>& destination);
 
-    void ntt_negacyclic(CycloModRing& ring);
+    void ntt(RnsCycloRing& ring, const std::vector<uint64_t>& omegas);
 
-    void inverse_ntt_negacyclic(CycloModRing& ring);
+    void inverse_ntt(RnsCycloRing& ring, const std::vector<uint64_t>& inv_omegas);
+
+    void ntt_negacyclic(RnsCycloRing& ring);
+
+    void inverse_ntt_negacyclic(RnsCycloRing& ring);
 }

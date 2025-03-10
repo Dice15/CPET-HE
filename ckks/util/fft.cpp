@@ -107,7 +107,7 @@ namespace cpet
         }
     }
 
-    void inverse_fft(CycloRing& ring, const std::vector<std::complex<double_t>>& inverse_omega_powers)
+    void inverse_fft(CycloRing& ring, const std::vector<std::complex<double_t>>& inv_omega_powers)
     {
         // Get ring data.
         const PolyModulus& poly_modulus = ring.poly_modulus();
@@ -115,7 +115,7 @@ namespace cpet
 
         // X[k] = 1/n * {３x[j]*企^(-jk)}, for all k,j ↑ {0, ... , n-1}, where n is poly modulus degree.
         // So, use 企^-1 as Standard NTT's 企 for IFFT.
-        fft(ring, inverse_omega_powers);
+        fft(ring, inv_omega_powers);
 
 
         // Scaling coeff to 1/n * coeff, where n is poly modulus degree.
@@ -175,10 +175,10 @@ namespace cpet
 
 
         // Find 2n-th primitive root(交).
-        std::vector<std::complex<double_t>> inverse_zeta_powers;
+        std::vector<std::complex<double_t>> inv_zeta_powers;
         const PolyModulus poly_modulus_2n(2 * poly_modulus_n.degree());
         
-        compute_inverse_minimal_primitive_root_powers(poly_modulus_2n, inverse_zeta_powers);
+        compute_inverse_minimal_primitive_root_powers(poly_modulus_2n, inv_zeta_powers);
 
         //std::cout << "2n-th primitive root for fft negacyclic: " << inverse_zeta_powers[1] << "\n";
 
@@ -192,20 +192,20 @@ namespace cpet
         // x[n-1] = 1/n * {X[0]*交^-(0*(2n-1)) + X[1]*交^-(1*(2n-1)) + X[2]*交^-(2*(2n-1)) ... + X[n-1]*交^-((n-1)*(2n-1))}
         // 
         // So, use 交昌as Standard IFFT's 企 and multiply 交^-j to ring's all coeff.
-        std::vector<std::complex<double_t>> inverse_omega_powers(poly_modulus_n.degree());
+        std::vector<std::complex<double_t>> inv_omega_powers(poly_modulus_n.degree());
 
         for (uint64_t j = 0; j < poly_modulus_n.degree(); j++)
         {
-            inverse_omega_powers[j] = inverse_zeta_powers[j * 2];
+            inv_omega_powers[j] = inv_zeta_powers[j * 2];
         }
 
-        inverse_fft(ring, inverse_omega_powers);
+        inverse_fft(ring, inv_omega_powers);
 
         uint64_t inv_zeta_exponent = 0;
 
         for (uint64_t j = 0; j < poly_modulus_n.degree(); j++)
         {
-            ring(j, ring(j) * inverse_zeta_powers[inv_zeta_exponent]);
+            ring(j, ring(j) * inv_zeta_powers[inv_zeta_exponent]);
             inv_zeta_exponent = inv_zeta_exponent + 1;
         }
     }
@@ -234,6 +234,5 @@ namespace cpet
         {
             ring(i, std::complex<double_t>(ring(i).real(), 0.0));
         }
-
     }
 }
