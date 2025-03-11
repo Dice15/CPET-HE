@@ -43,6 +43,10 @@ namespace cpet
 	private:
 		PolyModulus poly_modulus_;
 
+		//ModulusChain moduli_begin_;
+
+		//ModulusChain moduli_end_;
+
 		std::shared_ptr<std::vector<Modulus>> moduli_;
 
 		std::vector<std::vector<uint64_t>> congruences_;

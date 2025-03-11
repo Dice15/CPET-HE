@@ -152,10 +152,10 @@ namespace cpet
         // (2^bit_size - 1) / factor * factor + 1 부터 factor를 빼면서 소수를 찾음.
         uint64_t candidate = ((static_cast<uint64_t>(1) << bit_size) - 1) / factor * factor + 1;
         uint64_t lower_bound = static_cast<uint64_t>(1) << (bit_size - 1);
-      
+
         destination.clear();
 
-        while (count >0 && candidate > lower_bound)
+        while (count > 0 && candidate > lower_bound)
         {
             if (is_prime(candidate))
             {
