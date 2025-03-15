@@ -9,13 +9,13 @@
 
 namespace cpet
 {
-    bool is_primitive_root(uint64_t root, const PolyModulus& poly_modulus, const Modulus& modulus);
+    bool is_primitive_root(uint64_t root, const PolyModulus& poly_modulus, uint64_t modulus);
 
-    bool try_primitive_root(const PolyModulus& poly_modulus, const Modulus& modulus, uint64_t& destination);
+    bool try_primitive_root(const PolyModulus& poly_modulus, uint64_t modulus, uint64_t& destination);
 
-    bool try_minimal_primitive_root(const PolyModulus& poly_modulus, const Modulus& modulus, uint64_t& destination);
+    bool try_minimal_primitive_root(const PolyModulus& poly_modulus, uint64_t modulus, uint64_t& destination);
 
-    bool try_inverse_minimal_primitive_root(const PolyModulus& poly_modulus, const Modulus& modulus, uint64_t& destination);
+    bool try_inverse_minimal_primitive_root(const PolyModulus& poly_modulus, uint64_t modulus, uint64_t& destination);
 
     void create_ntt_table(const PolyModulus& poly_modulus, std::vector<uint64_t>& destination);
 

@@ -154,6 +154,7 @@ namespace cpet
         uint64_t lower_bound = static_cast<uint64_t>(1) << (bit_size - 1);
 
         destination.clear();
+        destination.reserve(count);
 
         while (count > 0 && candidate > lower_bound)
         {

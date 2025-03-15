@@ -6,33 +6,81 @@
 #include <vector>
 #include <memory>
 
+#include "arithmod.h"
+#include <stdexcept>
+#include <iostream>
+#include <string>
 
 namespace cpet
 {
 	class RnsCycloRing
 	{
+	private:
+
+		using const_iter_pair = std::pair<std::vector<uint64_t>::iterator, std::vector<uint64_t>::iterator>;
+
 	public:
 		RnsCycloRing();
 
-		RnsCycloRing(PolyModulus poly_modulus, std::shared_ptr<std::vector<Modulus>> moduli, uint64_t value = 0ULL);
+		RnsCycloRing(const PolyModulus& poly_modulus, const Basis& basis, uint64_t value = 0ULL);
 
-		RnsCycloRing(RnsCycloRing&other);
+		RnsCycloRing(RnsCycloRing& other);
 
 		uint64_t operator()(uint64_t congruence_index, uint64_t coeff_index) const;
 
 		void operator()(uint64_t congruence_index, uint64_t coeff_index, uint64_t value);
 
-		void assign(PolyModulus poly_modulus_degree, std::shared_ptr<std::vector<Modulus>> moduli, uint64_t value = 0ULL);
+		void assign(const PolyModulus& poly_modulus, const Basis& basis, uint64_t value = 0ULL);
 
 		const PolyModulus& poly_modulus() const;
 
-		std::shared_ptr<std::vector<Modulus>> moduli() const;
+		uint64_t basis_size() const;
+
+		Basis::basis_iterator basis_begin() const;
+
+		Basis::basis_iterator basis_end() const;
+
+		void fast_basis_conversion(
+			uint64_t basis_a_size,
+			uint64_t basis_b_size,
+			std::vector<uint64_t>::const_iterator basis_a,
+			std::vector<uint64_t>::const_iterator basis_b,
+			std::vector<uint64_t>::const_iterator inv_a_hats_a,
+			std::vector<std::vector<uint64_t>>::const_iterator a_hats_b,
+			uint64_t congruence_size,
+			const std::vector<std::vector<uint64_t>>& congruences_a,
+			std::vector<std::vector<uint64_t>>& destination) const;
+
+		void approximate_modulus_raising(
+			uint64_t basis_p_size,
+			uint64_t basis_q_size,
+			std::vector<uint64_t>::const_iterator basis_p,
+			std::vector<uint64_t>::const_iterator basis_q,
+			std::vector<uint64_t>::const_iterator inv_q_hats_q,
+			std::vector<std::vector<uint64_t>>::const_iterator q_hats_p,
+			uint64_t congruence_size,
+			const std::vector<std::vector<uint64_t>>& congruences_q,
+			std::vector<std::vector<uint64_t>>& destination) const;
+
+		void approximate_modulus_reduction(
+			uint64_t basis_p_size,
+			uint64_t basis_q_size,
+			std::vector<uint64_t>::const_iterator basis_p,
+			std::vector<uint64_t>::const_iterator basis_q,
+			std::vector<uint64_t>::const_iterator inv_P_q,
+			std::vector<uint64_t>::const_iterator inv_p_hats_p,
+			std::vector<std::vector<uint64_t>>::const_iterator p_hats_q,
+			uint64_t congruence_size,
+			const std::vector<std::vector<uint64_t>>& congruences_d,
+			std::vector<std::vector<uint64_t>>& destination) const;
+
+		void convert_basis(Basis::basis_type basis_type);
 
 		void set_ntt_form();
 
 		void set_normal_form();
 
-		void add(const RnsCycloRing& other, RnsCycloRing&destination) const;
+		void add(const RnsCycloRing& other, RnsCycloRing& destination) const;
 
 		void sub(const RnsCycloRing& other, RnsCycloRing& destination) const;
 
@@ -43,11 +91,7 @@ namespace cpet
 	private:
 		PolyModulus poly_modulus_;
 
-		//ModulusChain moduli_begin_;
-
-		//ModulusChain moduli_end_;
-
-		std::shared_ptr<std::vector<Modulus>> moduli_;
+		Basis basis_;
 
 		std::vector<std::vector<uint64_t>> congruences_;
 
