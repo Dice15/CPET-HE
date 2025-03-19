@@ -1,26 +1,49 @@
-#pragma once
+﻿#pragma once
 
+#include "polymodulus.h"
 #include <cstdint>
 #include <vector>
-#include "cycloring.h"
-#include "polymodulus.h"
+#include <complex>
 
 
 namespace cpet
 {
-    void compute_minimal_primitive_root_powers(const PolyModulus& poly_modulus, std::vector<std::complex<double_t>>& destination);
+    class FFT
+    {
+    public:
+        FFT() = default;
 
-    void create_fft_table(const PolyModulus& poly_modulus, std::vector<uint64_t>& destination);
+        FFT(const PolyModulus& poly_modulus);
 
-    void fft(CycloRing& ring, const std::vector<std::complex<double_t>>& omega_powers);
+        void variant_canonical_embedding(std::vector<std::complex<double_t>>& ring) const;
 
-    void inverse_fft(CycloRing& ring, const std::vector<std::complex<double_t>>& inv_omega_powers);
+        void inverse_variant_canonical_embedding(std::vector<std::complex<double_t>>& vector) const;
 
-    void fft_negacyclic(CycloRing& ring);
+    private:
+        void compute_root_of_unity(uint64_t n, uint64_t exponent, std::complex<double_t>& destination) const;
 
-    void inverse_fft_negacyclic(CycloRing& ring);
+        void compute_inverse_root_of_unity(uint64_t n, uint64_t exponent, std::complex<double_t>& destination) const;
 
-    void inverse_variant_canonical_embedding(CycloRing& ring);
+        void fft(std::vector<std::complex<double_t>>& ring, bool inverse = false) const;
 
-    void variant_canonical_embedding(CycloRing& ring);
+        void inverse_fft(std::vector<std::complex<double_t>>& vector) const;
+
+        void fft_negacyclic(std::vector<std::complex<double_t>>& ring) const;
+
+        void inverse_fft_negacyclic(std::vector<std::complex<double_t>>& vector) const;
+
+        double_t PI = 3.14159265358979323846;
+
+        uint64_t poly_modulus_degree_;
+
+        std::vector<uint64_t> bit_reversal_table_;
+
+        std::vector<std::complex<double_t>> zeta_powers_;
+
+        std::vector<std::complex<double_t>> omega_powers_;
+
+        std::vector<std::complex<double_t>> inv_zeta_powers_;
+
+        std::vector<std::complex<double_t>> inv_omega_powers_;
+    };
 }

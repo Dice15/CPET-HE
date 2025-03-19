@@ -1,18 +1,18 @@
 
 #include "cycloring.h"
-#include "fft.h"
 #include <stdexcept>
 
 
 namespace cpet
 {
-	CycloRing::CycloRing() : CycloRing(0) {}
+	CycloRing::CycloRing() : CycloRing(PolyModulus(), std::make_shared<FFT>()) {}
 
-	CycloRing::CycloRing(PolyModulus poly_modulus, const std::complex<double_t>& value)
+	CycloRing::CycloRing(const PolyModulus& poly_modulus, const std::shared_ptr<FFT>& fft_handler, const std::complex<double_t>& value)
 	{
 		poly_modulus_ = poly_modulus;
-		slot_count_ = poly_modulus_.degree() / 2;
+		slot_count_ = poly_modulus.degree() >> 1ULL;
 		coeffs_.assign(poly_modulus_.degree(), value);
+		fft_handler_ = fft_handler;
 		ifft_form_ = false;
 	}
 
@@ -21,6 +21,7 @@ namespace cpet
 		poly_modulus_ = other.poly_modulus_;
 		slot_count_ = other.slot_count_;
 		coeffs_ = other.coeffs_;
+		fft_handler_ = other.fft_handler_;
 		ifft_form_ = other.ifft_form_;
 	}
 
@@ -69,8 +70,7 @@ namespace cpet
 			throw std::out_of_range("This ring is already ifft form.");
 		}
 
-		inverse_variant_canonical_embedding(*this);
-
+		fft_handler_->inverse_variant_canonical_embedding(coeffs_);
 		ifft_form_ = true;
 	}
 
@@ -81,8 +81,7 @@ namespace cpet
 			throw std::out_of_range("This ring is already noraml form.");
 		}
 
-		variant_canonical_embedding(*this);
-
+		fft_handler_->variant_canonical_embedding(coeffs_);
 		ifft_form_ = false;
 	}
 }
