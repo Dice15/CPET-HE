@@ -40,9 +40,9 @@ namespace cpet
 
         std::vector<std::complex<double_t>> zeta_powers_;
 
-        std::vector<std::complex<double_t>> omega_powers_;
-
         std::vector<std::complex<double_t>> inv_zeta_powers_;
+
+        std::vector<std::complex<double_t>> omega_powers_;
 
         std::vector<std::complex<double_t>> inv_omega_powers_;
     };

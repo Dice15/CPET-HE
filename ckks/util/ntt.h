@@ -1,29 +1,47 @@
 #pragma once
 
+#include "polymodulus.h"
+#include "basis.h"
 #include <cstdint>
 #include <vector>
-#include "rnscycloring.h"
-#include "polymodulus.h"
-#include "modulus.h"
 
 
 namespace cpet
 {
-    bool is_primitive_root(uint64_t root, const PolyModulus& poly_modulus, uint64_t modulus);
+    class NTT
+    {
+    public:
+        NTT() = default;
 
-    bool try_primitive_root(const PolyModulus& poly_modulus, uint64_t modulus, uint64_t& destination);
+        NTT(const PolyModulus& poly_modulus, const Basis& basis);
 
-    bool try_minimal_primitive_root(const PolyModulus& poly_modulus, uint64_t modulus, uint64_t& destination);
+        void ntt_negacyclic(std::vector<std::vector<uint64_t>>& rings, uint64_t basis_begin, uint64_t basis_end) const;
 
-    bool try_inverse_minimal_primitive_root(const PolyModulus& poly_modulus, uint64_t modulus, uint64_t& destination);
+        void inverse_ntt_negacyclic(std::vector<std::vector<uint64_t>>& vectors, uint64_t basis_begin, uint64_t basis_end) const;
 
-    void create_ntt_table(const PolyModulus& poly_modulus, std::vector<uint64_t>& destination);
+    private:
+        bool is_primitive_root(uint64_t n, uint64_t root, uint64_t prime) const;
 
-    void ntt(RnsCycloRing& ring, const std::vector<uint64_t>& omegas);
+        bool try_primitive_root(uint64_t n, uint64_t prime, uint64_t& destination) const;
 
-    void inverse_ntt(RnsCycloRing& ring, const std::vector<uint64_t>& inv_omegas);
+        bool try_minimal_primitive_root(uint64_t n, uint64_t prime, uint64_t& destination) const;
 
-    void ntt_negacyclic(RnsCycloRing& ring);
+        void ntt(std::vector<std::vector<uint64_t>>& rings, uint64_t basis_begin, uint64_t basis_end, bool inverse = false) const;
 
-    void inverse_ntt_negacyclic(RnsCycloRing& ring);
+        void inverse_ntt(std::vector<std::vector<uint64_t>>& vectors, uint64_t basis_begin, uint64_t basis_end) const;
+
+        uint64_t poly_modulus_degree_;
+
+        std::vector<uint64_t> basis_;
+
+        std::vector<uint64_t> bit_reversal_table_;
+
+        std::vector<std::vector<uint64_t>> zeta_powers_by_basis_;
+
+        std::vector<std::vector<uint64_t>> omega_powers_by_basis_;
+
+        std::vector<std::vector<uint64_t>> inv_zeta_powers_by_basis_;
+
+        std::vector<std::vector<uint64_t>> inv_omega_powers_by_basis_;
+    };
 }

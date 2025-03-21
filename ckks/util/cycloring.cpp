@@ -5,29 +5,23 @@
 
 namespace cpet
 {
-	CycloRing::CycloRing() : CycloRing(PolyModulus(), std::make_shared<FFT>()) {}
+	CycloRing::CycloRing() : CycloRing(PolyModulus(), std::make_shared<const FFT>()) {}
 
-	CycloRing::CycloRing(const PolyModulus& poly_modulus, const std::shared_ptr<FFT>& fft_handler, const std::complex<double_t>& value)
+	CycloRing::CycloRing(
+		const PolyModulus& poly_modulus, 
+		const std::shared_ptr<const FFT>& fft_handler, 
+		const std::complex<double_t>& value)
 	{
-		poly_modulus_ = poly_modulus;
-		slot_count_ = poly_modulus.degree() >> 1ULL;
-		coeffs_.assign(poly_modulus_.degree(), value);
+		poly_modulus_degree_ = poly_modulus.degree();
+		slot_count_ = poly_modulus_degree_ >> 1ULL;
+		coeffs_.assign(poly_modulus_degree_, value);
 		fft_handler_ = fft_handler;
 		ifft_form_ = false;
 	}
 
-	CycloRing::CycloRing(const CycloRing& other)
-	{
-		poly_modulus_ = other.poly_modulus_;
-		slot_count_ = other.slot_count_;
-		coeffs_ = other.coeffs_;
-		fft_handler_ = other.fft_handler_;
-		ifft_form_ = other.ifft_form_;
-	}
-
 	const std::complex<double_t>& CycloRing::operator()(uint64_t index) const
 	{
-		if (index >= poly_modulus_.degree())
+		if (index >= poly_modulus_degree_)
 		{
 			throw std::out_of_range("Index out of range.");
 		}
@@ -37,7 +31,7 @@ namespace cpet
 
 	void CycloRing::operator()(uint64_t index, const std::complex<double_t>& value)
 	{
-		if (index >= poly_modulus_.degree())
+		if (index >= poly_modulus_degree_)
 		{
 			throw std::out_of_range("Index out of range.");
 		}
@@ -45,17 +39,21 @@ namespace cpet
 		coeffs_[index] = value;
 	}
 
-	void CycloRing::assign(PolyModulus poly_modulus, const std::complex<double_t>& value)
+	void CycloRing::assign(
+		const PolyModulus& poly_modulus,
+		const std::shared_ptr<const FFT>& fft_handler,
+		const std::complex<double_t>& value)
 	{
-		poly_modulus_ = poly_modulus;
-		slot_count_ = poly_modulus_.degree() / 2;
-		coeffs_.assign(poly_modulus_.degree(), value);
+		poly_modulus_degree_ = poly_modulus.degree();
+		slot_count_ = poly_modulus_degree_ >> 1ULL;
+		coeffs_.assign(poly_modulus_degree_, value);
+		fft_handler_ = fft_handler;
 		ifft_form_ = false;
 	}
 
-	const PolyModulus& CycloRing::poly_modulus() const
+	uint64_t CycloRing::poly_modulus_degree() const
 	{
-		return poly_modulus_;
+		return poly_modulus_degree_;
 	}
 
 	uint64_t CycloRing::slot_count() const

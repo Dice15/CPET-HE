@@ -1,46 +1,43 @@
 #pragma once
 
 #include "polymodulus.h"
-#include "modulus.h"
+#include "basis.h"
+#include "ntt.h"
 #include <cstdint>
 #include <vector>
 #include <memory>
 
-#include "arithmod.h"
-#include <stdexcept>
-#include <iostream>
-#include <string>
 
 namespace cpet
 {
 	class RnsCycloRing
 	{
-	private:
-
-		using const_iter_pair = std::pair<std::vector<uint64_t>::iterator, std::vector<uint64_t>::iterator>;
-
 	public:
 		RnsCycloRing();
 
-		RnsCycloRing(const PolyModulus& poly_modulus, const Basis& basis, uint64_t value = 0ULL);
-
-		RnsCycloRing(RnsCycloRing& other);
+		RnsCycloRing(
+			const PolyModulus& poly_modulus, 
+			const Basis& basis, 
+			const std::shared_ptr<const NTT>& ntt_handler, 
+			uint64_t value = 0ULL);
 
 		uint64_t operator()(uint64_t congruence_index, uint64_t coeff_index) const;
 
 		void operator()(uint64_t congruence_index, uint64_t coeff_index, uint64_t value);
 
-		void assign(const PolyModulus& poly_modulus, const Basis& basis, uint64_t value = 0ULL);
+		void assign(
+			const PolyModulus& poly_modulus,
+			const Basis& basis,
+			const std::shared_ptr<const NTT>& ntt_handler,
+			uint64_t value = 0ULL);
 
-		const PolyModulus& poly_modulus() const;
+		uint64_t poly_modulus_degree() const;
 
-		uint64_t basis_size() const;
+		uint64_t slot_count() const;
 
-		Basis::basis_iterator basis_begin() const;
+		const Basis& basis() const;
 
-		Basis::basis_iterator basis_end() const;
-
-		void fast_basis_conversion(
+		/*void fast_basis_conversion(
 			uint64_t basis_a_size,
 			uint64_t basis_b_size,
 			std::vector<uint64_t>::const_iterator basis_a,
@@ -72,9 +69,9 @@ namespace cpet
 			std::vector<std::vector<uint64_t>>::const_iterator p_hats_q,
 			uint64_t congruence_size,
 			const std::vector<std::vector<uint64_t>>& congruences_d,
-			std::vector<std::vector<uint64_t>>& destination) const;
+			std::vector<std::vector<uint64_t>>& destination) const;*/
 
-		void convert_basis(Basis::basis_type basis_type);
+		//void convert_basis(Basis::basis_type basis_type);
 
 		void set_ntt_form();
 
@@ -89,11 +86,15 @@ namespace cpet
 		void negate(RnsCycloRing& destination) const;
 
 	private:
-		PolyModulus poly_modulus_;
+		uint64_t poly_modulus_degree_;
+
+		uint64_t slot_count_;
+
+		std::vector<std::vector<uint64_t>> congruences_;
 
 		Basis basis_;
 
-		std::vector<std::vector<uint64_t>> congruences_;
+		std::shared_ptr<const NTT> ntt_handler_;
 
 		bool ntt_form_;
 	};

@@ -17,15 +17,15 @@ namespace cpet
         // 
         // So, compute powers of ζ, ω, ζ⁻¹, ω⁻¹( where ω=ζ²and ω⁻¹=ζ⁻²are root for standard FFT and IFFT).
         zeta_powers_.resize(poly_modulus_degree_n);
-        omega_powers_.resize(poly_modulus_degree_n);
         inv_zeta_powers_.resize(poly_modulus_degree_n);
+        omega_powers_.resize(poly_modulus_degree_n);
         inv_omega_powers_.resize(poly_modulus_degree_n);
 
         for (uint64_t j = 0; j < poly_modulus_degree_n; ++j)
         {
             compute_root_of_unity(poly_modulus_degree_2n, j, zeta_powers_[j]);
-            compute_root_of_unity(poly_modulus_degree_n, j, omega_powers_[j]);
             compute_inverse_root_of_unity(poly_modulus_degree_2n, j, inv_zeta_powers_[j]);
+            compute_root_of_unity(poly_modulus_degree_n, j, omega_powers_[j]);
             compute_inverse_root_of_unity(poly_modulus_degree_n, j, inv_omega_powers_[j]);
         }
 
@@ -160,9 +160,11 @@ namespace cpet
 
 
         // Scaling coeff to 1/n * coeff, where n is poly modulus degree.
+        double_t n_inv = 1.0 / static_cast<double_t>(poly_modulus_degree_);
+
         for (uint64_t i = 0; i < poly_modulus_degree_; ++i)
         {
-            vector[i] /= static_cast<double_t>(poly_modulus_degree_);
+            vector[i] *= n_inv;
         }
     }
 

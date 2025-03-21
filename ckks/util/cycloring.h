@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <complex>
 #include <vector>
-
+#include <memory>
 
 namespace cpet
 {
@@ -14,17 +14,21 @@ namespace cpet
 	public:
 		CycloRing();
 
-		CycloRing(const PolyModulus& poly_modulus, const std::shared_ptr<FFT>& fft_handler, const std::complex<double_t>& value = { 0.0, 0.0 });
-
-		CycloRing(const CycloRing& other);
+		CycloRing(
+			const PolyModulus& poly_modulus, 
+			const std::shared_ptr<const FFT>& fft_handler, 
+			const std::complex<double_t>& value = { 0.0, 0.0 });
 
 		const std::complex<double_t>& operator()(uint64_t index) const;
 
 		void operator()(uint64_t index, const std::complex<double_t>& value);
 
-		void assign(PolyModulus poly_modulus_degree, const std::complex<double_t>& value = { 0.0, 0.0 });
+		void assign(
+			const PolyModulus& poly_modulus,
+			const std::shared_ptr<const FFT>& fft_handler,
+			const std::complex<double_t>& value = { 0.0, 0.0 });
 
-		const PolyModulus& poly_modulus() const;
+		uint64_t poly_modulus_degree() const;
 
 		uint64_t slot_count() const;
 
@@ -33,13 +37,13 @@ namespace cpet
 		void set_normal_form();
 
 	private:
-		PolyModulus poly_modulus_;
+		uint64_t poly_modulus_degree_;
 
 		uint64_t slot_count_;
 
 		std::vector<std::complex<double_t>> coeffs_;
 
-		std::shared_ptr<FFT> fft_handler_;
+		std::shared_ptr<const FFT> fft_handler_;
 
 		bool ifft_form_;
 	};
