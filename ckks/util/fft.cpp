@@ -1,7 +1,8 @@
 ﻿
 #include "fft.h"
 #include <stdexcept>
-
+#include <iostream>
+#include <iomanip>  
 
 namespace cpet
 {
@@ -49,7 +50,7 @@ namespace cpet
         }
     }
 
-    void FFT::variant_canonical_embedding(std::vector<std::complex<double_t>>& ring) const
+    void FFT::variant_canonical_embedding(std::vector<std::complex<double_t>>& ring, double_t scale) const
     {
         if (ring.size() != poly_modulus_degree_)
         {
@@ -63,7 +64,7 @@ namespace cpet
         // [a₀, conj(aₙ₋₁), ... , aₙ₋₁, conj(a₀)] -> [a₀, a₁, ... aₙ₋₁, 0, ... , 0, 0]
         for (uint64_t j = 0; j < poly_modulus_degree_; j += 2)
         {
-            ring[j >> 1] = ring[j];
+            ring[j >> 1] = ring[j] / scale;
         }
 
         for (uint64_t j = (poly_modulus_degree_ >> 1); j < poly_modulus_degree_; ++j)
@@ -72,7 +73,7 @@ namespace cpet
         }
     }
 
-    void FFT::inverse_variant_canonical_embedding(std::vector<std::complex<double_t>>& vector) const
+    void FFT::inverse_variant_canonical_embedding(std::vector<std::complex<double_t>>& vector, double_t scale) const
     {
         if (vector.size() != poly_modulus_degree_)
         {
@@ -95,7 +96,7 @@ namespace cpet
 
         for (uint64_t i = 0; i < poly_modulus_degree_; i++)
         {
-            vector[i] = std::complex<double_t>(vector[i].real(), 0.0);
+            vector[i] = std::complex<double_t>(vector[i].real() * scale, 0.0);
         }
     }
 

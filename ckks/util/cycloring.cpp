@@ -5,8 +5,6 @@
 
 namespace cpet
 {
-	CycloRing::CycloRing() : CycloRing(PolyModulus(), std::make_shared<const FFT>()) {}
-
 	CycloRing::CycloRing(
 		const PolyModulus& poly_modulus, 
 		const std::shared_ptr<const FFT>& fft_handler, 
@@ -61,25 +59,25 @@ namespace cpet
 		return slot_count_;
 	}
 
-	void CycloRing::set_ifft_form()
+	void CycloRing::set_ifft_form(double_t scale)
 	{
 		if (ifft_form_)
 		{
 			throw std::out_of_range("This ring is already ifft form.");
 		}
 
-		fft_handler_->inverse_variant_canonical_embedding(coeffs_);
+		fft_handler_->inverse_variant_canonical_embedding(coeffs_, scale);
 		ifft_form_ = true;
 	}
 
-	void CycloRing::set_normal_form()
+	void CycloRing::set_normal_form(double_t scale)
 	{
 		if (!ifft_form_)
 		{
 			throw std::out_of_range("This ring is already noraml form.");
 		}
 
-		fft_handler_->variant_canonical_embedding(coeffs_);
+		fft_handler_->variant_canonical_embedding(coeffs_, scale);
 		ifft_form_ = false;
 	}
 }

@@ -204,6 +204,11 @@ namespace cpet
 		return const_data_->basis_d_[index];
 	}
 
+	Basis::basis_type Basis::curr_basis() const
+	{
+		return curr_basis_;
+	}
+
 	uint64_t Basis::begin() const
 	{
 		return curr_basis_ == Basis::basis_type::basis_d ? 0 : const_data_->basis_p_size_;

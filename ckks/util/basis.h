@@ -69,6 +69,8 @@ namespace cpet
 
 		uint64_t operator[](uint64_t index) const;
 
+		basis_type curr_basis() const;
+
 		uint64_t begin() const;
 
 		uint64_t end() const;

@@ -12,7 +12,7 @@ namespace cpet
 	class CycloRing
 	{
 	public:
-		CycloRing();
+		CycloRing() = default;
 
 		CycloRing(
 			const PolyModulus& poly_modulus, 
@@ -30,11 +30,11 @@ namespace cpet
 
 		uint64_t poly_modulus_degree() const;
 
-		uint64_t slot_count() const;
+		uint64_t slot_count() const; // 삭제 필요
 
-		void set_ifft_form();
+		void set_ifft_form(double_t scale);
 
-		void set_normal_form();
+		void set_normal_form(double_t scale);
 
 	private:
 		uint64_t poly_modulus_degree_;

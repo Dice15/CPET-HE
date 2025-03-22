@@ -5,7 +5,7 @@
 
 namespace cpet
 {
-	PolyModulus::PolyModulus() :PolyModulus(2) {}
+	PolyModulus::PolyModulus() :poly_modulus_degree_(2) {}
 
 	PolyModulus::PolyModulus(uint64_t poly_modulus_degree)
 	{

@@ -15,9 +15,9 @@ namespace cpet
 
         FFT(const PolyModulus& poly_modulus);
 
-        void variant_canonical_embedding(std::vector<std::complex<double_t>>& ring) const;
+        void variant_canonical_embedding(std::vector<std::complex<double_t>>& ring, double_t scale) const;
 
-        void inverse_variant_canonical_embedding(std::vector<std::complex<double_t>>& vector) const;
+        void inverse_variant_canonical_embedding(std::vector<std::complex<double_t>>& vector, double_t scale) const;
 
     private:
         void compute_root_of_unity(uint64_t n, uint64_t exponent, std::complex<double_t>& destination) const;
