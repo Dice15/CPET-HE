@@ -9,67 +9,57 @@ namespace cpet
 	class Basis
 	{
 	public:
-		enum class basis_type : uint16_t;
-		class constant;
-		class iterator;
-		
-
-		enum class basis_type : uint16_t
+		enum class BasisType : uint16_t
 		{
-			basis_d = 0,
-			basis_q = 1
+			basis_q = 0,
+			basis_pq = 1,
 		};
 
 
-		class constant
+		struct Constant
 		{
-		public:
-			constant(
-				uint64_t poly_modulus_degree,
-				const std::vector<uint64_t>& basis_p_bit_sizes,
-				const std::vector<uint64_t>& basis_q_bit_sizes);
+			uint64_t p_begin_;
 
-		private:
-			uint64_t basis_p_size_;
+			uint64_t p_end_;
 
-			uint64_t basis_q_size_;
+			uint64_t q_begin_;
 
-			uint64_t basis_d_size_;
+			uint64_t q_end_;
 
-			std::vector<uint64_t> basis_p_;
+			std::vector<uint64_t> moduli_;
 
-			std::vector<uint64_t> basis_q_;
+			std::vector<uint64_t> P_mod_ql_;
 
-			std::vector<uint64_t> basis_d_;
+			std::vector<uint64_t> inv_P_mod_ql_;
 
-			std::vector<uint64_t> inv_P_q_l_;
+			std::vector<uint64_t> inv_p_hats_mod_p;
 
-			std::vector<uint64_t> inv_p_hats_p_;
+			std::vector<std::vector<uint64_t>> p_hats_mod_ql_;
 
-			std::vector<std::vector<uint64_t>> p_hats_q_l_;
+			std::vector<std::vector<uint64_t>> inv_ql_hats_mod_ql_;
 
-			std::vector<std::vector<uint64_t>> inv_q_l_hats_q_l_;
-
-			std::vector<std::vector<std::vector<uint64_t>>> q_l_hats_p_;	
-
-			friend class Basis;
-
-			friend class Basis::iterator;
+			std::vector<std::vector<std::vector<uint64_t>>> ql_hats_mod_p;	
 		};
 
 	
 	public:
-		Basis() = default;
+		Basis();
 
-		Basis(std::shared_ptr<const constant> const_data);
+		Basis(
+			uint64_t poly_modulus_degree,
+			const std::vector<uint64_t>& moduli_p_bit_sizes,
+			const std::vector<uint64_t>& moduli_q_bit_sizes
+		);
 
 		bool operator==(const Basis& other) const;
 
 		bool operator!=(const Basis& other) const;
 
-		uint64_t operator[](uint64_t index) const;
+		BasisType get_type() const;
 
-		basis_type curr_basis() const;
+		void set_type(BasisType basis_type);
+
+		const std::vector<uint64_t>& get_moduli() const;
 
 		uint64_t begin() const;
 
@@ -77,38 +67,30 @@ namespace cpet
 
 		uint64_t size() const;
 
-		void convert_basis(basis_type basis);
+		uint64_t capacity() const;
 
-		void pop_basis_q();
+		uint64_t at(uint64_t index) const;
 
-		uint64_t basis_p_size() const;
+		void drop_q();
 
-		uint64_t basis_q_size() const;
+		const std::vector<uint64_t>& P_mod_ql() const;
 
-		uint64_t basis_d_size() const;
+		const std::vector<uint64_t>& inv_P_mod_ql() const;
 
-		const std::vector<uint64_t>& basis_p() const;
+		const std::vector<uint64_t>& inv_p_hats_mod_p() const;
 
-		const std::vector<uint64_t>& basis_q() const;
+		const std::vector<std::vector<uint64_t>>& p_hats_mod_ql() const;
 
-		const std::vector<uint64_t>& basis_d() const;
+		const std::vector<uint64_t>& inv_ql_hats_mod_ql() const;
 
-		const std::vector<uint64_t>& inv_P_q() const;
-
-		const std::vector<uint64_t>& inv_p_hats_p() const;
-
-		const std::vector<std::vector<uint64_t>>& p_hats_q() const;
-
-		const std::vector<uint64_t>& inv_q_hats_q() const;
-
-		const std::vector<std::vector<uint64_t>>& q_hats_p() const;
+		const std::vector<std::vector<uint64_t>>& ql_hats_mod_p() const;
 
 
 	private:
-		std::shared_ptr<const constant> const_data_;
+		std::shared_ptr<const Constant> constant_;
 
-		uint64_t pop_count_of_basis_q_;
+		BasisType basis_type_;
 
-		basis_type curr_basis_;
+		uint64_t drop_q_count_;
 	};
 }

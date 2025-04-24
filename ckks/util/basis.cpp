@@ -8,22 +8,47 @@
 
 namespace cpet
 {
-	// Basis Constants
-	Basis::constant::constant(
+	Basis::Basis() :
+		constant_(nullptr),
+		basis_type_(BasisType::basis_q),
+		drop_q_count_(0)
+	{}
+
+	Basis::Basis(
 		uint64_t poly_modulus_degree,
-		const std::vector<uint64_t>& basis_p_bit_sizes,
-		const std::vector<uint64_t>& basis_q_bit_sizes)
+		const std::vector<uint64_t>& moduli_p_bit_sizes,
+		const std::vector<uint64_t>& moduli_q_bit_sizes
+	) :
+		basis_type_(BasisType::basis_q),
+		drop_q_count_(0)
 	{
-		basis_p_size_ = basis_p_bit_sizes.size();
-		basis_q_size_ = basis_q_bit_sizes.size();
-		basis_d_size_ = basis_p_size_ + basis_q_size_;
+		// Check count of basis.
+		if (moduli_p_bit_sizes.empty())
+		{
+			throw std::invalid_argument("The basis p cannot be empty.");
+		}
+
+		if (moduli_q_bit_sizes.empty())
+		{
+			throw std::invalid_argument("The basis q cannot be empty.");
+		}
+
+
+		// Create constant
+		Constant constant;
+
+		constant.p_begin_ = 0;
+		constant.p_end_ = moduli_p_bit_sizes.size();
+
+		constant.q_begin_ = constant.p_end_;
+		constant.q_end_ = constant.q_begin_ + moduli_q_bit_sizes.size();
 
 
 		// Create basis p and q
 		std::unordered_map<uint64_t, uint64_t> modulus_bit_sizes_count;
 		std::unordered_map<uint64_t, std::vector<uint64_t>> modulus_map;
 
-		for (auto modulus_bit_size : basis_p_bit_sizes)
+		for (uint64_t modulus_bit_size : moduli_p_bit_sizes)
 		{
 			if (is_over_60_bit(modulus_bit_size))
 			{
@@ -33,7 +58,7 @@ namespace cpet
 			modulus_bit_sizes_count[modulus_bit_size]++;
 		}
 
-		for (auto modulus_bit_size : basis_q_bit_sizes)
+		for (uint64_t modulus_bit_size : moduli_q_bit_sizes)
 		{
 			if (is_over_60_bit(modulus_bit_size))
 			{
@@ -53,81 +78,86 @@ namespace cpet
 			std::sort(moduli.begin(), moduli.end(), std::greater<uint64_t>());
 		}
 
-		basis_p_.reserve(basis_p_size_);
-		basis_q_.reserve(basis_q_size_);
-		basis_d_.reserve(basis_p_size_ + basis_q_size_);
+		std::vector<uint64_t> moduli_p;
+		std::vector<uint64_t> moduli_q;
 
-		for (auto basis_p_bit_size : basis_p_bit_sizes)
+		moduli_p.reserve(moduli_p_bit_sizes.size());
+		moduli_q.reserve(moduli_q_bit_sizes.size());
+		constant.moduli_.reserve(moduli_p_bit_sizes.size() + moduli_q_bit_sizes.size());
+
+		for (auto basis_p_bit_size : moduli_p_bit_sizes)
 		{
-			basis_p_.push_back(modulus_map[basis_p_bit_size].back());
-			basis_d_.push_back(modulus_map[basis_p_bit_size].back());
+			moduli_p.push_back(modulus_map[basis_p_bit_size].back());		
 			modulus_map[basis_p_bit_size].pop_back();
+			constant.moduli_.push_back(moduli_p.back());
 		}
 
-		for (auto basis_q_bit_size : basis_q_bit_sizes)
+		for (auto basis_q_bit_size : moduli_q_bit_sizes)
 		{
-			basis_q_.push_back(modulus_map[basis_q_bit_size].back());
-			basis_d_.push_back(modulus_map[basis_q_bit_size].back());
+			moduli_q.push_back(modulus_map[basis_q_bit_size].back());
 			modulus_map[basis_q_bit_size].pop_back();
+			constant.moduli_.push_back(moduli_q.back());
 		}
 
 
-		// Compute the constants for basis p
-		inv_P_q_l_.resize(basis_q_size_);
-		inv_p_hats_p_.resize(basis_p_size_);
-		p_hats_q_l_.resize(basis_p_size_, std::vector<uint64_t>(basis_q_size_));
+		// Compute the constants for fast basis convert (p <-> q)
+		constant.P_mod_ql_.resize(moduli_q_bit_sizes.size());
+		constant.inv_P_mod_ql_.resize(moduli_q_bit_sizes.size());
+		constant.inv_p_hats_mod_p.resize(moduli_p_bit_sizes.size());
+		constant.p_hats_mod_ql_.resize(moduli_p_bit_sizes.size(), std::vector<uint64_t>(moduli_q_bit_sizes.size()));
 
-		for (uint64_t i = 0; i < basis_p_size_; i++)
+		for (uint64_t i = 0; i < moduli_p_bit_sizes.size(); i++)
 		{
 			uint64_t p_hat_p_i = 1;
 
-			for (uint64_t ii = 0; ii < basis_p_size_; ii++)
+			for (uint64_t ii = 0; ii < moduli_p_bit_sizes.size(); ii++)
 			{
 				if (i == ii)
 				{
 					continue;
 				}
 
-				p_hat_p_i = mul_mod(p_hat_p_i, basis_p_[ii], basis_p_[i]);
+				p_hat_p_i = mul_mod(p_hat_p_i, moduli_p[ii], moduli_p[i]);
 			}
 
-			inv_p_hats_p_[i] = inverse_mod(p_hat_p_i, basis_p_[i]);
+			constant.inv_p_hats_mod_p[i] = inverse_mod(p_hat_p_i, moduli_p[i]);
 		}
 
-		for (uint64_t j = 0; j < basis_q_size_; j++)
+		for (uint64_t j = 0; j < moduli_q_bit_sizes.size(); j++)
 		{
 			uint64_t P_q_j = 1;
 
-			for (uint64_t i = 0; i < basis_p_size_; i++)
+			for (uint64_t i = 0; i < moduli_p_bit_sizes.size(); i++)
 			{
-				P_q_j = mul_mod(P_q_j, basis_p_[i], basis_q_[j]);
+				P_q_j = mul_mod(P_q_j, moduli_p[i], moduli_q[j]);
 
 				uint64_t p_hat_q_j = 1;
 
-				for (uint64_t ii = 0; ii < basis_p_size_; ii++)
+				for (uint64_t ii = 0; ii < moduli_p_bit_sizes.size(); ii++)
 				{
 					if (i == ii)
 					{
 						continue;
 					}
 
-					p_hat_q_j = mul_mod(p_hat_q_j, basis_p_[ii], basis_q_[j]);
+					p_hat_q_j = mul_mod(p_hat_q_j, moduli_p[ii], moduli_q[j]);
 				}
 
-				p_hats_q_l_[i][j] = p_hat_q_j;
+				constant.p_hats_mod_ql_[i][j] = p_hat_q_j;
 			}
-
-			inv_P_q_l_[j] = inverse_mod(P_q_j, basis_q_[j]);
+	
+			constant.P_mod_ql_[j] = P_q_j;
+			constant.inv_P_mod_ql_[j] = inverse_mod(P_q_j, moduli_q[j]);
 		}
 
 
-		// Compute the constants for basis q
-		inv_q_l_hats_q_l_.resize(basis_q_size_);
-		q_l_hats_p_.resize(basis_q_size_);
+		// Compute the constants fast basis convert (p <-> q)
+		constant.inv_ql_hats_mod_ql_.resize(moduli_q_bit_sizes.size());
+		constant.ql_hats_mod_p.resize(moduli_q_bit_sizes.size());
 
-		for (uint64_t l = 0; l < basis_q_size_; l++)
+		for (uint64_t l = 0; l < moduli_q_bit_sizes.size(); l++)
 		{
-			inv_q_l_hats_q_l_[l].resize(l + 1);
+			constant.inv_ql_hats_mod_ql_[l].resize(l + 1);
 
 			for (uint64_t j = 0; j <= l; j++)
 			{
@@ -140,18 +170,18 @@ namespace cpet
 						continue;
 					}
 
-					q_l_hat_q_j = mul_mod(q_l_hat_q_j, basis_q_[jj], basis_q_[j]);
+					q_l_hat_q_j = mul_mod(q_l_hat_q_j, moduli_q[jj], moduli_q[j]);
 				}
 
-				inv_q_l_hats_q_l_[l][j] = inverse_mod(q_l_hat_q_j, basis_q_[j]);
+				constant.inv_ql_hats_mod_ql_[l][j] = inverse_mod(q_l_hat_q_j, moduli_q[j]);
 			}
 		}
 
-		for (uint64_t l = 0; l < basis_q_size_; l++)
+		for (uint64_t l = 0; l < moduli_q_bit_sizes.size(); l++)
 		{
-			q_l_hats_p_[l].resize(l + 1, std::vector<uint64_t>(basis_p_size_));
+			constant.ql_hats_mod_p[l].resize(l + 1, std::vector<uint64_t>(moduli_p_bit_sizes.size()));
 
-			for (uint64_t i = 0; i < basis_p_size_; i++)
+			for (uint64_t i = 0; i < moduli_p_bit_sizes.size(); i++)
 			{
 				for (uint64_t j = 0; j <= l; j++)
 				{
@@ -164,59 +194,80 @@ namespace cpet
 							continue;
 						}
 
-						q_l_hat_p_i = mul_mod(q_l_hat_p_i, basis_q_[jj], basis_p_[i]);
+						q_l_hat_p_i = mul_mod(q_l_hat_p_i, moduli_q[jj], moduli_p[i]);
 					}
 
-					q_l_hats_p_[l][j][i] = q_l_hat_p_i;
+					constant.ql_hats_mod_p[l][j][i] = q_l_hat_p_i;
 				}
 			}
 		}
+
+
+		// init constant
+		constant_ = std::make_shared<const Constant>(constant);
 	}
-
-
-	// Basis
-	Basis::Basis(std::shared_ptr<const constant> const_data) :
-		const_data_(const_data),
-		pop_count_of_basis_q_(0),
-		curr_basis_(basis_type::basis_q) {}
 
 	bool Basis::operator==(const Basis& other) const
 	{
-		return const_data_ == other.const_data_
-			&& pop_count_of_basis_q_ == other.pop_count_of_basis_q_
-			&& curr_basis_ == other.curr_basis_;
+		return constant_ == other.constant_
+			&& basis_type_ == other.basis_type_
+			&& drop_q_count_ == other.drop_q_count_;
 	}
 
 	bool Basis::operator!=(const Basis& other) const
 	{
-		return const_data_ != other.const_data_
-			|| pop_count_of_basis_q_ != other.pop_count_of_basis_q_
-			|| curr_basis_ != other.curr_basis_;
+		return constant_ != other.constant_
+			|| basis_type_ != other.basis_type_
+			|| drop_q_count_ != other.drop_q_count_;
 	}
 
-	uint64_t Basis::operator[](uint64_t index) const
+	Basis::BasisType Basis::get_type() const
 	{
-		if (index < begin() || end() <= index)
-		{
-			throw std::out_of_range("Index out of range.");
-		}
-
-		return const_data_->basis_d_[index];
+		return basis_type_;
 	}
 
-	Basis::basis_type Basis::curr_basis() const
+	void Basis::set_type(BasisType basis_type)
 	{
-		return curr_basis_;
+		basis_type_ = basis_type;
+	}
+
+	const std::vector<uint64_t>& Basis::get_moduli() const
+	{
+		return constant_->moduli_;
 	}
 
 	uint64_t Basis::begin() const
 	{
-		return curr_basis_ == Basis::basis_type::basis_d ? 0 : const_data_->basis_p_size_;
+		switch (basis_type_)
+		{
+		case BasisType::basis_q: 
+		{
+			return constant_->q_begin_;
+		}
+		case BasisType::basis_pq:
+		{
+			return constant_->p_begin_;
+		}
+		default:
+			throw std::out_of_range("Invaild basis type.");
+		}
 	}
 
 	uint64_t Basis::end() const
 	{
-		return const_data_->basis_d_size_ - pop_count_of_basis_q_;
+		switch (basis_type_)
+		{
+		case BasisType::basis_q:
+		{
+			return constant_->q_end_ - drop_q_count_;
+		}
+		case BasisType::basis_pq:
+		{
+			return constant_->q_end_ - drop_q_count_;
+		}
+		default:
+			throw std::out_of_range("Invaild basis type.");
+		}
 	}
 
 	uint64_t Basis::size() const
@@ -224,73 +275,56 @@ namespace cpet
 		return end() - begin();
 	}
 
-	void Basis::convert_basis(Basis::basis_type basis)
+	uint64_t Basis::capacity() const
 	{
-		curr_basis_ = basis;
+		return constant_->q_end_;
 	}
 
-	void Basis::pop_basis_q()
+	uint64_t Basis::at(uint64_t index) const
 	{
-		if (const_data_->basis_q_.size() < 2)
+		if (index < begin() || end() <= index)
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		return constant_->moduli_[index];
+	}
+
+	void Basis::drop_q()
+	{
+		if (static_cast<int64_t>(constant_->q_end_) - ++drop_q_count_ == constant_->q_begin_)
 		{
 			throw std::out_of_range("Basis q must have at least one elements.");
 		}
-
-		++pop_count_of_basis_q_;
 	}
 
-	uint64_t Basis::basis_p_size() const
+	const std::vector<uint64_t>& Basis::P_mod_ql() const
 	{
-		return const_data_->basis_p_.size();
+		return constant_->P_mod_ql_;
 	}
 
-	uint64_t Basis::basis_q_size() const
+	const std::vector<uint64_t>& Basis::inv_P_mod_ql() const
 	{
-		return const_data_->basis_q_.size() - pop_count_of_basis_q_;
+		return constant_->inv_P_mod_ql_;
 	}
 
-	uint64_t Basis::basis_d_size() const
+	const std::vector<uint64_t>& Basis::inv_p_hats_mod_p() const
 	{
-		return const_data_->basis_d_.size() - pop_count_of_basis_q_;
+		return constant_->inv_p_hats_mod_p;
 	}
 
-	const std::vector<uint64_t>& Basis::basis_p() const
+	const std::vector<std::vector<uint64_t>>& Basis::p_hats_mod_ql() const
 	{
-		return const_data_->basis_p_;
+		return constant_->p_hats_mod_ql_;
 	}
 
-	const std::vector<uint64_t>& Basis::basis_q() const
+	const std::vector<uint64_t>& Basis::inv_ql_hats_mod_ql() const
 	{
-		return const_data_->basis_q_;
+		return constant_->inv_ql_hats_mod_ql_[constant_->q_end_ - constant_->q_begin_ - 1ULL];
 	}
 
-	const std::vector<uint64_t>& Basis::basis_d() const
+	const std::vector<std::vector<uint64_t>>& Basis::ql_hats_mod_p() const
 	{
-		return const_data_->basis_d_;
-	}
-
-	const std::vector<uint64_t>& Basis::inv_P_q() const
-	{
-		return const_data_->inv_P_q_l_;
-	}
-
-	const std::vector<uint64_t>& Basis::inv_p_hats_p() const
-	{
-		return const_data_->inv_p_hats_p_;
-	}
-
-	const std::vector<std::vector<uint64_t>>& Basis::p_hats_q() const
-	{
-		return const_data_->p_hats_q_l_;
-	}
-
-	const std::vector<uint64_t>& Basis::inv_q_hats_q() const
-	{
-		return const_data_->inv_q_l_hats_q_l_[basis_q_size() - 1ULL];
-	}
-
-	const std::vector<std::vector<uint64_t>>& Basis::q_hats_p() const
-	{
-		return const_data_->q_l_hats_p_[basis_q_size() - 1ULL];
+		return constant_->ql_hats_mod_p[constant_->q_end_ - constant_->q_begin_ - 1ULL];
 	}
 }

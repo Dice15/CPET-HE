@@ -6,95 +6,155 @@
 
 namespace cpet
 {
+	RnsCycloRing::RnsCycloRing() :
+		poly_modulus_degree_(0),
+		basis_(nullptr),
+		rns_coeffs_({}),
+		ntt_handler_(nullptr),
+		ntt_form_(false)
+	{}
+
 	RnsCycloRing::RnsCycloRing(
-		const PolyModulus& poly_modulus,
+		uint64_t poly_modulus_degree,
 		const Basis& basis,
-		double_t scale,
+		const std::shared_ptr<const NTT>& ntt_handler
+	) :
+		poly_modulus_degree_(poly_modulus_degree),
+		basis_(&basis),
+		rns_coeffs_(std::vector<std::vector<uint64_t>>(
+			basis.capacity(),
+			std::vector<uint64_t>(poly_modulus_degree_, 0))
+		),
+		ntt_handler_(ntt_handler),
+		ntt_form_(false)
+	{}
+
+	RnsCycloRing::RnsCycloRing(
+		uint64_t poly_modulus_degree,
+		const Basis& basis,
 		const std::shared_ptr<const NTT>& ntt_handler,
-		uint64_t value)
+		int64_t value
+	) :
+		poly_modulus_degree_(poly_modulus_degree),
+		basis_(&basis),
+		rns_coeffs_(std::vector<std::vector<uint64_t>>(
+			basis.capacity(),
+			std::vector<uint64_t>(poly_modulus_degree_, 0))
+		),
+		ntt_handler_(ntt_handler),
+		ntt_form_(false)
 	{
-		poly_modulus_degree_ = poly_modulus.degree();
-		basis_ = basis;
-		scale_ = scale;
-		ntt_handler_ = ntt_handler;
-		ntt_form_ = false;
-
-		congruences_.assign(basis_.basis_d().size(), std::vector<uint64_t>());
-
-		for (uint64_t b = basis_.begin(); b < basis_.end(); ++b)
+		for (uint64_t rns_idx = basis.begin(); rns_idx < basis.end(); ++rns_idx)
 		{
-			congruences_[b].resize(poly_modulus_degree_);
-
-			for (uint64_t i = 0; i < poly_modulus_degree_; ++i)
+			for (uint64_t coeff_idx = 0; coeff_idx < poly_modulus_degree; ++coeff_idx)
 			{
-				congruences_[b][i] = mod(value, basis_[b]);
+				if (coeff_idx >= rns_coeffs_[rns_idx].size())
+				{
+					throw std::out_of_range("Index out of range.");
+				}
+
+				if (value < 0)
+				{
+					rns_coeffs_[rns_idx][coeff_idx] = negate_mod(std::llabs(value), basis_->at(rns_idx));
+				}
+				else
+				{
+					rns_coeffs_[rns_idx][coeff_idx] = mod(value, basis_->at(rns_idx));
+				}
 			}
 		}
 	}
 
-	int64_t RnsCycloRing::operator()(uint64_t index) const
+	void RnsCycloRing::operator()(const RnsCycloRing& other)
 	{
-		uint64_t b = basis_.begin();
+		if (poly_modulus_degree_ != other.poly_modulus_degree_)
+		{
+			throw std::out_of_range("Poly modulus degree is mismatched.");
+		}
 
-		if (index >= congruences_[b].size())
+		if (basis_ != other.basis_ || ntt_handler_ != other.ntt_handler_)
+		{
+			throw std::out_of_range("Basis is mismatched.");
+		}
+
+		for (uint64_t rns_idx = basis_->begin(); rns_idx < basis_->end(); ++rns_idx)
+		{
+			for (uint64_t coeff_idx = 0; coeff_idx < poly_modulus_degree_; ++coeff_idx)
+			{
+				rns_coeffs_[rns_idx][coeff_idx] = other.rns_coeffs_[rns_idx][coeff_idx];
+			}
+		}
+
+		ntt_form_ = other.ntt_form_;
+	}
+
+	int64_t RnsCycloRing::get_coeff(uint64_t coeff_idx) const
+	{
+		uint64_t rns_idx = basis_->begin();
+
+		if (coeff_idx >= rns_coeffs_[rns_idx].size())
 		{
 			throw std::out_of_range("Index out of range.");
 		}
 		
-		if (congruences_[b][index] < (basis_[b] >> 1))
+		if (rns_coeffs_[rns_idx][coeff_idx] < (basis_->at(rns_idx) >> 1))
 		{
-			return congruences_[b][index];
+			return rns_coeffs_[rns_idx][coeff_idx];
 		}
 		else
 		{
-			return -static_cast<int64_t>(negate_mod(congruences_[b][index], basis_[b]));
+			return -static_cast<int64_t>(negate_mod(rns_coeffs_[rns_idx][coeff_idx], basis_->at(rns_idx)));
 		}
 	}
 
-	void RnsCycloRing::operator()(uint64_t index, int64_t value)
+	void RnsCycloRing::set_coeff(uint64_t coeff_idx, int64_t value)
 	{
-		for (uint64_t b = basis_.begin(); b < basis_.end(); ++b)
+		for (uint64_t rns_idx = basis_->begin(); rns_idx < basis_->end(); ++rns_idx)
 		{
-			if (index >= congruences_[b].size())
+			if (coeff_idx >= rns_coeffs_[rns_idx].size())
 			{
 				throw std::out_of_range("Index out of range.");
 			}
 
 			if (value < 0)
 			{
-				congruences_[b][index] = negate_mod(std::llabs(value), basis_[b]);
+				rns_coeffs_[rns_idx][coeff_idx] = negate_mod(std::llabs(value), basis_->at(rns_idx));
 			}
 			else
 			{
-				congruences_[b][index] = mod(value, basis_[b]);
+				rns_coeffs_[rns_idx][coeff_idx] = mod(value, basis_->at(rns_idx));
 			}
 		}
 	}
 
-	void RnsCycloRing::assign(
-		const PolyModulus& poly_modulus,
-		const Basis& basis,
-		double_t scale,
-		const std::shared_ptr<const NTT>& ntt_handler,
-		uint64_t value)
+	uint64_t RnsCycloRing::get_rns_coeff(uint64_t rns_idx, uint64_t coeff_idx) const
 	{
-		poly_modulus_degree_ = poly_modulus.degree();
-		basis_ = basis;
-		scale_ = scale;
-		ntt_handler_ = ntt_handler;
-		ntt_form_ = false;
-
-		congruences_.assign(basis_.basis_d().size(), std::vector<uint64_t>());
-
-		for (uint64_t b = basis_.begin(); b < basis_.end(); b++)
+		if (rns_idx >= rns_coeffs_.size())
 		{
-			congruences_[b].resize(poly_modulus_degree_);
-
-			for (uint64_t i = 0; i < poly_modulus_degree_; i++)
-			{
-				congruences_[b][i] = mod(value, basis_[b]);
-			}
+			throw std::out_of_range("Index out of range.");
 		}
+
+		if (coeff_idx >= rns_coeffs_[rns_idx].size())
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		return rns_coeffs_[rns_idx][coeff_idx];
+	}
+
+	void RnsCycloRing::set_rns_coeff(uint64_t rns_idx, uint64_t coeff_idx, uint64_t value)
+	{
+		if (rns_idx >= rns_coeffs_.size())
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		if (coeff_idx >= rns_coeffs_[rns_idx].size())
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		rns_coeffs_[rns_idx][coeff_idx] = mod(value, basis_->at(rns_idx));
 	}
 
 	uint64_t RnsCycloRing::poly_modulus_degree() const
@@ -102,19 +162,24 @@ namespace cpet
 		return poly_modulus_degree_;
 	}
 
-	const Basis& RnsCycloRing::basis() const
+	const Basis& RnsCycloRing::get_basis() const
 	{
-		return basis_;
+		return *basis_;
 	}
 
-	double_t RnsCycloRing::get_scale() const
+	void RnsCycloRing::set_basis(const Basis* const basis)
 	{
-		return scale_;
-	}
+		basis_ = basis;
 
-	void RnsCycloRing::set_scale(double_t scale)
-	{
-		scale_ = scale;
+		for (uint64_t b = 0; b < basis_->begin(); ++b)
+		{
+			rns_coeffs_[b] = {};
+		}
+
+		for (uint64_t b = basis_->end(); b < rns_coeffs_.size(); ++b)
+		{
+			rns_coeffs_[b] = {};
+		}
 	}
 
 	/*void RnsCycloRing::fast_basis_conversion(
@@ -278,7 +343,7 @@ namespace cpet
 			throw std::out_of_range("This ring is already ntt form.");
 		}
 
-		ntt_handler_->ntt_negacyclic(congruences_, basis_.begin(), basis_.end());
+		ntt_handler_->ntt_negacyclic(rns_coeffs_, basis_->begin(), basis_->end());
 		ntt_form_ = true;
 	}
 
@@ -289,15 +354,15 @@ namespace cpet
 			throw std::out_of_range("This ring is already normal form.");
 		}
 
-		ntt_handler_->inverse_ntt_negacyclic(congruences_, basis_.begin(), basis_.end());
+		ntt_handler_->inverse_ntt_negacyclic(rns_coeffs_, basis_->begin(), basis_->end());
 		ntt_form_ = false;
 	}
 
 	void RnsCycloRing::add_inplace(const RnsCycloRing& other)
 	{
-		if (poly_modulus_degree_ != other.poly_modulus_degree_ || basis_ != other.basis_ || scale_ != other.scale_)
+		if (poly_modulus_degree_ != other.poly_modulus_degree_ || basis_ != other.basis_)
 		{
-			throw std::invalid_argument("Rings must have matching poly modulus degree, basis and scale.");
+			throw std::invalid_argument("Rings must have matching poly modulus degree and basis.");
 		}
 
 		if (!ntt_form_ || !other.ntt_form_)
@@ -305,26 +370,20 @@ namespace cpet
 			throw std::invalid_argument("Ring of CKKS scheme must be in NTT form.");
 		}
 
-		for (uint64_t b = basis_.begin(); b < basis_.end(); ++b)
+		for (uint64_t b = basis_->begin(); b < basis_->end(); ++b)
 		{
 			for (uint64_t i = 0; i < poly_modulus_degree_; ++i)
 			{
-				congruences_[b][i] = add_mod(congruences_[b][i], other.congruences_[b][i], basis_[b]);
+				rns_coeffs_[b][i] = add_mod(rns_coeffs_[b][i], other.rns_coeffs_[b][i], basis_->at(b));
 			}
 		}
-	}
-
-	void RnsCycloRing::add(const RnsCycloRing& other, RnsCycloRing& destination) const
-	{
-		destination = *this;
-		destination.add_inplace(other);
 	}
 
 	void RnsCycloRing::sub_inplace(const RnsCycloRing& other)
 	{
-		if (poly_modulus_degree_ != other.poly_modulus_degree_ || basis_ != other.basis_ || scale_ != other.scale_)
+		if (poly_modulus_degree_ != other.poly_modulus_degree_ || basis_ != other.basis_)
 		{
-			throw std::invalid_argument("Rings must have matching poly modulus degree, basis and scale.");
+			throw std::invalid_argument("Rings must have matching poly modulus degree and basis.");
 		}
 
 		if (!ntt_form_ || !other.ntt_form_)
@@ -332,26 +391,20 @@ namespace cpet
 			throw std::invalid_argument("Ring of CKKS scheme must be in NTT form.");
 		}
 
-		for (uint64_t b = basis_.begin(); b < basis_.end(); ++b)
+		for (uint64_t b = basis_->begin(); b < basis_->end(); ++b)
 		{
 			for (uint64_t i = 0; i < poly_modulus_degree_; ++i)
 			{
-				congruences_[b][i] = sub_mod(congruences_[b][i], other.congruences_[b][i], basis_[b]);
+				rns_coeffs_[b][i] = sub_mod(rns_coeffs_[b][i], other.rns_coeffs_[b][i], basis_->at(b));
 			}
 		}
-	}
-
-	void RnsCycloRing::sub(const RnsCycloRing& other, RnsCycloRing& destination) const
-	{
-		destination = *this;
-		destination.sub_inplace(other);
 	}
 
 	void RnsCycloRing::mul_inplace(const RnsCycloRing& other)
 	{
 		if (poly_modulus_degree_ != other.poly_modulus_degree_ || basis_ != other.basis_)
 		{
-			throw std::invalid_argument("Rings must have matching degree, basis.");
+			throw std::invalid_argument("Rings must have matching degree and basis.");
 		}
 
 		if (!ntt_form_ || !other.ntt_form_)
@@ -359,37 +412,29 @@ namespace cpet
 			throw std::invalid_argument("Ring of CKKS scheme must be in NTT form.");
 		}
 
-		for (uint64_t b = basis_.begin(); b < basis_.end(); ++b)
+		for (uint64_t b = basis_->begin(); b < basis_->end(); ++b)
 		{
 			for (uint64_t i = 0; i < poly_modulus_degree_; ++i)
 			{
-				congruences_[b][i] = mul_mod(congruences_[b][i], other.congruences_[b][i], basis_[b]);
+				rns_coeffs_[b][i] = mul_mod(rns_coeffs_[b][i], other.rns_coeffs_[b][i], basis_->at(b));
 			}
 		}
-
-		scale_ *= other.scale_;
-	}
-
-	void RnsCycloRing::mul(const RnsCycloRing& other, RnsCycloRing& destination) const
-	{
-		destination = *this;
-		destination.mul_inplace(other);
 	}
 
 	void RnsCycloRing::negate_inplace()
 	{
-		for (uint64_t b = basis_.begin(); b < basis_.end(); ++b)
+		for (uint64_t b = basis_->begin(); b < basis_->end(); ++b)
 		{
 			for (uint64_t i = 0; i < poly_modulus_degree_; ++i)
 			{
-				congruences_[b][i] = negate_mod(congruences_[b][i], basis_[b]);
+				rns_coeffs_[b][i] = negate_mod(rns_coeffs_[b][i], basis_->at(b));
 			}
 		}
 	}
 
-	void RnsCycloRing::modulus_reduction()
+/*	void RnsCycloRing::modulus_reduction()
 	{
-		basis_.pop_basis_q();
+		basis_->level_down();
 		congruences_[basis_.end()].clear();
 	}
 
@@ -397,23 +442,23 @@ namespace cpet
 	{
 		set_normal_form();
 
-		uint64_t modulus_b = basis_.end() - 1ULL;
-		uint64_t modulus = basis_[modulus_b];
+		uint64_t last_index = basis_.end() - 1ULL;
+		uint64_t last_modulus = basis_[last_index];
 
-		for (uint64_t b = basis_.begin(); b < basis_.end(); ++b)
+		for (uint64_t b = basis_.begin(); b < last_index; ++b)
 		{
-			uint64_t inv_modulus = inverse_mod(modulus, basis_[b]);
+			uint64_t inv_modulus = inverse_mod(last_modulus, basis_[b]);
 
 			for (uint64_t i = 0; i < poly_modulus_degree_; ++i)
 			{
-				congruences_[b][i] = mul_mod(inv_modulus, sub_mod(congruences_[b][i], congruences_[modulus_b][i], basis_[b]), basis_[b]);
+				congruences_[b][i] = mul_mod(inv_modulus, sub_mod(congruences_[b][i], congruences_[last_index][i], basis_[b]), basis_[b]);
 			}
 		}
 
-		scale_ /= static_cast<double_t>(modulus);
+		scale_ /= static_cast<double_t>(last_modulus);
 
 		modulus_reduction();
 
 		set_ntt_form();
-	}
+	}*/
 }

@@ -30,16 +30,12 @@ namespace cpet
 
 		uint64_t poly_modulus_degree() const;
 
-		uint64_t slot_count() const; // 삭제 필요
-
 		void set_ifft_form(double_t scale);
 
 		void set_normal_form(double_t scale);
 
 	private:
 		uint64_t poly_modulus_degree_;
-
-		uint64_t slot_count_;
 
 		std::vector<std::complex<double_t>> coeffs_;
 

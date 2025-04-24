@@ -13,33 +13,36 @@ namespace cpet
 	class RnsCycloRing
 	{
 	public:
-		RnsCycloRing() = delete;
+		RnsCycloRing();
 
 		RnsCycloRing(
-			const PolyModulus& poly_modulus, 
-			const Basis& basis, 
-			double_t scale,
-			const std::shared_ptr<const NTT>& ntt_handler, 
-			uint64_t value = 0ULL);
-
-		int64_t operator()(uint64_t index) const;
-
-		void operator()(uint64_t index, int64_t value);
-
-		void assign(
-			const PolyModulus& poly_modulus,
+			uint64_t poly_modulus_degree,
 			const Basis& basis,
-			double_t scale,
+			const std::shared_ptr<const NTT>& ntt_handler
+		);
+
+		RnsCycloRing(
+			uint64_t poly_modulus_degree,
+			const Basis& basis,
 			const std::shared_ptr<const NTT>& ntt_handler,
-			uint64_t value = 0ULL);
+			int64_t value
+		);
+
+		void operator()(const RnsCycloRing& other);
+
+		int64_t get_coeff(uint64_t coeff_idx) const;
+
+		void set_coeff(uint64_t coeff_idx, int64_t value);
+
+		uint64_t get_rns_coeff(uint64_t rns_idx, uint64_t coeff_idx) const;
+
+		void set_rns_coeff(uint64_t rns_idx, uint64_t coeff_idx, uint64_t value);
 
 		uint64_t poly_modulus_degree() const;
 
-		double_t get_scale() const;
+		const Basis& get_basis() const;
 
-		void set_scale(double_t scale);
-
-		const Basis& basis() const; // 삭제 필요
+		void set_basis(const Basis* const basis);
 
 		void set_ntt_form();
 
@@ -47,31 +50,22 @@ namespace cpet
 
 		void add_inplace(const RnsCycloRing& other);
 
-		void add(const RnsCycloRing& other, RnsCycloRing& destination) const;
-
 		void sub_inplace(const RnsCycloRing& other);
-
-		void sub(const RnsCycloRing& other, RnsCycloRing& destination) const;
 
 		void mul_inplace(const RnsCycloRing& other);
 
-		void mul(const RnsCycloRing& other, RnsCycloRing& destination) const;
-
 		void negate_inplace();
 
-		void modulus_reduction();
+		//void modulus_reduction();
 
-		void rescale();
-
+		//void rescale();
 
 	private:
 		uint64_t poly_modulus_degree_;
 
-		Basis basis_;
+		const Basis* basis_;
 
-		double_t scale_;
-
-		std::vector<std::vector<uint64_t>> congruences_;
+		std::vector<std::vector<uint64_t>> rns_coeffs_;
 
 		std::shared_ptr<const NTT> ntt_handler_;
 

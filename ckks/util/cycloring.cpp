@@ -11,7 +11,6 @@ namespace cpet
 		const std::complex<double_t>& value)
 	{
 		poly_modulus_degree_ = poly_modulus.degree();
-		slot_count_ = poly_modulus_degree_ >> 1ULL;
 		coeffs_.assign(poly_modulus_degree_, value);
 		fft_handler_ = fft_handler;
 		ifft_form_ = false;
@@ -43,7 +42,6 @@ namespace cpet
 		const std::complex<double_t>& value)
 	{
 		poly_modulus_degree_ = poly_modulus.degree();
-		slot_count_ = poly_modulus_degree_ >> 1ULL;
 		coeffs_.assign(poly_modulus_degree_, value);
 		fft_handler_ = fft_handler;
 		ifft_form_ = false;
@@ -52,11 +50,6 @@ namespace cpet
 	uint64_t CycloRing::poly_modulus_degree() const
 	{
 		return poly_modulus_degree_;
-	}
-
-	uint64_t CycloRing::slot_count() const
-	{
-		return slot_count_;
 	}
 
 	void CycloRing::set_ifft_form(double_t scale)

@@ -11,9 +11,9 @@ namespace cpet
     class FFT
     {
     public:
-        FFT() = default;
+        FFT();
 
-        FFT(const PolyModulus& poly_modulus);
+        FFT(uint64_t poly_modulus_degree);
 
         void variant_canonical_embedding(std::vector<std::complex<double_t>>& ring, double_t scale) const;
 

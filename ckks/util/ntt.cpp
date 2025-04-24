@@ -7,10 +7,21 @@
 
 namespace cpet
 {
-    NTT::NTT(const PolyModulus& poly_modulus, const Basis& basis) :poly_modulus_degree_(poly_modulus.degree()), basis_(basis.basis_d())
+    NTT::NTT() :
+        poly_modulus_degree_(0),
+        basis_(nullptr),
+        bit_reversal_table_({}),
+        zeta_powers_by_basis_({}),
+        inv_zeta_powers_by_basis_({}),
+        omega_powers_by_basis_({}),
+        inv_omega_powers_by_basis_({})
+    {}
+
+    NTT::NTT(uint64_t poly_modulus_degree, const Basis& basis) :
+        poly_modulus_degree_(poly_modulus_degree),
+        basis_(&basis)
     {
-        uint64_t basis_size = basis_.size();
-        uint64_t poly_modulus_degree_n = poly_modulus_degree_;
+        uint64_t poly_modulus_degree_n = poly_modulus_degree;
         uint64_t poly_modulus_degree_2n = poly_modulus_degree_n << 1;
 
 
@@ -19,35 +30,37 @@ namespace cpet
         // X[k] = ∑x[j]*ζ^(j(2k+1)) = ∑x[j]*ζ^(j)*ζ^(2jk), for all k,j ∈ { 0, ... , n-1 }, where n is poly modulus degree
         // 
         // So, compute powers of ζ, ω, ζ⁻¹, ω⁻¹( where ω=ζ²and ω⁻¹=ζ⁻²are root for standard NTT and INTT).
-        zeta_powers_by_basis_.resize(basis_size, std::vector<uint64_t>(poly_modulus_degree_n));
-        inv_zeta_powers_by_basis_.resize(basis_size, std::vector<uint64_t>(poly_modulus_degree_n));
-        omega_powers_by_basis_.resize(basis_size, std::vector<uint64_t>(poly_modulus_degree_n));
-        inv_omega_powers_by_basis_.resize(basis_size, std::vector<uint64_t>(poly_modulus_degree_n));
+        zeta_powers_by_basis_.resize(basis.size(), std::vector<uint64_t>(poly_modulus_degree_n));
+        inv_zeta_powers_by_basis_.resize(basis.size(), std::vector<uint64_t>(poly_modulus_degree_n));
+        omega_powers_by_basis_.resize(basis.size(), std::vector<uint64_t>(poly_modulus_degree_n));
+        inv_omega_powers_by_basis_.resize(basis.size(), std::vector<uint64_t>(poly_modulus_degree_n));
 
-        for (uint64_t b = 0; b < basis_size; ++b)
+        for (uint64_t b = 0; b < basis.size(); ++b)
         {
             uint64_t zeta;
 
-            if (!try_minimal_primitive_root(poly_modulus_degree_2n, basis_[b], zeta))
+            if (!try_minimal_primitive_root(poly_modulus_degree_2n, basis.at(b), zeta))
             {
                 throw std::logic_error("Failed to find primitive root for NTT negacyclic.");
             }
 
-            uint64_t inv_zeta = inverse_mod(zeta, basis_[b]);
-            uint64_t omaga = mul_mod(zeta, zeta, basis_[b]);
-            uint64_t inv_omaga = mul_mod(inv_zeta, inv_zeta, basis_[b]);
+            uint64_t inv_zeta = inverse_mod(zeta, basis.at(b));
+            uint64_t omaga = mul_mod(zeta, zeta, basis.at(b));
+            uint64_t inv_omaga = mul_mod(inv_zeta, inv_zeta, basis.at(b));
 
             zeta_powers_by_basis_[b][0] = 1;
             inv_zeta_powers_by_basis_[b][0] = 1;
+
             omega_powers_by_basis_[b][0] = 1;
             inv_omega_powers_by_basis_[b][0] = 1;
 
             for (uint64_t j = 1; j < poly_modulus_degree_n; ++j)
             {
-                zeta_powers_by_basis_[b][j] = mul_mod(zeta_powers_by_basis_[b][j - 1], zeta, basis_[b]);
-                inv_zeta_powers_by_basis_[b][j] = mul_mod(inv_zeta_powers_by_basis_[b][j - 1], inv_zeta, basis_[b]);
-                omega_powers_by_basis_[b][j] = mul_mod(omega_powers_by_basis_[b][j - 1], omaga, basis_[b]);
-                inv_omega_powers_by_basis_[b][j] = mul_mod(inv_omega_powers_by_basis_[b][j - 1], inv_omaga, basis_[b]);
+                zeta_powers_by_basis_[b][j] = mul_mod(zeta_powers_by_basis_[b][j - 1], zeta, basis.at(b));
+                inv_zeta_powers_by_basis_[b][j] = mul_mod(inv_zeta_powers_by_basis_[b][j - 1], inv_zeta, basis.at(b));
+
+                omega_powers_by_basis_[b][j] = mul_mod(omega_powers_by_basis_[b][j - 1], omaga, basis.at(b));
+                inv_omega_powers_by_basis_[b][j] = mul_mod(inv_omega_powers_by_basis_[b][j - 1], inv_omaga, basis.at(b));
             }
         }
 
@@ -145,7 +158,8 @@ namespace cpet
         return true;
     }
 
-    void NTT::ntt(std::vector<std::vector<uint64_t>>& rings, uint64_t basis_begin, uint64_t basis_end, bool inverse) const
+    void NTT::ntt(
+        std::vector<std::vector<uint64_t>>& rings, uint64_t basis_begin, uint64_t basis_end, bool inverse) const
     {
         const std::vector<std::vector<uint64_t>>& omega_powers = inverse ? inv_omega_powers_by_basis_ : omega_powers_by_basis_;
 
@@ -180,10 +194,10 @@ namespace cpet
                     for (size_t j = 0; j < (len >> 1); j++)
                     {
                         uint64_t u = rings[b][i + j];
-                        uint64_t v = mul_mod(rings[b][i + j + (len >> 1)], omega_powers[b][exponent], basis_[b]);
+                        uint64_t v = mul_mod(rings[b][i + j + (len >> 1)], omega_powers[b][exponent], basis_->at(b));
 
-                        rings[b][i + j] = add_mod(u, v, basis_[b]);
-                        rings[b][i + j + (len >> 1)] = sub_mod(u, v, basis_[b]);
+                        rings[b][i + j] = add_mod(u, v, basis_->at(b));
+                        rings[b][i + j + (len >> 1)] = sub_mod(u, v, basis_->at(b));
 
                         exponent += exponent_len;
                     }
@@ -192,7 +206,8 @@ namespace cpet
         }
     }
 
-    void NTT::inverse_ntt(std::vector<std::vector<uint64_t>>& vectors, uint64_t basis_begin, uint64_t basis_end) const
+    void NTT::inverse_ntt(
+        std::vector<std::vector<uint64_t>>& vectors, uint64_t basis_begin, uint64_t basis_end) const
     {
         // X[k] = 1/n * {∑x[j]*ω^(-jk)}, for all k,j ∈ {0, ... , n-1}.
         ntt(vectors, basis_begin, basis_end, true);
@@ -201,24 +216,25 @@ namespace cpet
         // Scaling coeff to 1/n * coeff, where n is poly modulus degree.
         for (uint64_t b = basis_begin; b < basis_end; ++b)
         {
-            uint64_t n_inv = inverse_mod(poly_modulus_degree_, basis_[b]);
+            uint64_t n_inv = inverse_mod(poly_modulus_degree_, basis_->at(b));
 
             for (size_t i = 0; i < poly_modulus_degree_; i++)
             {
-                vectors[b][i] = mul_mod(vectors[b][i], n_inv, basis_[b]);
+                vectors[b][i] = mul_mod(vectors[b][i], n_inv, basis_->at(b));
             }
         }
     }
 
-    void NTT::ntt_negacyclic(std::vector<std::vector<uint64_t>>& rings, uint64_t basis_begin, uint64_t basis_end) const
+    void NTT::ntt_negacyclic(
+        std::vector<std::vector<uint64_t>>& rings, uint64_t basis_begin, uint64_t basis_end) const
     {
         // Negacyclic NTT (This transformation uses 2n-th primitive root(ζ))
         // 
         // X[k] = ∑x[j]*ζ^(j(2k+1)) = ∑x[j]*ζ^(j)*ζ^(2jk), for all k,j ∈ { 0, ... , n-1 }, where n is poly modulus degree
         // 
         // X[0] = x[0]*ζ^(0*1) + x[1]*ζ^(1*1) + x[2]*ζ^(2*1) ... + x[n-1]*ζ^((n-1)*1)
-        // X[1] = x[0]*ζ^(0*5) + x[1]*ζ^(1*3) + x[2]*ζ^(2*3) ... + x[n-1]*ζ^((n-1)*3)
-        // X[2] = x[0]*ζ^(0*9) + x[1]*ζ^(1*5) + x[2]*ζ^(2*5) ... + x[n-1]*ζ^((n-1)*5)
+        // X[1] = x[0]*ζ^(0*3) + x[1]*ζ^(1*3) + x[2]*ζ^(2*3) ... + x[n-1]*ζ^((n-1)*3)
+        // X[2] = x[0]*ζ^(0*5) + x[1]*ζ^(1*5) + x[2]*ζ^(2*5) ... + x[n-1]*ζ^((n-1)*5)
         // ...
         // X[n-1] = x[0]*ζ^(0*(2n-1)) + x[1]*ζ^(1*(2n-1)) + x[2]*ζ^(2*(2n-1)) ... + x[n-1]*ζ^((n-1)*(2n-1))
         // 
@@ -227,14 +243,15 @@ namespace cpet
         {
             for (uint64_t i = 0; i < poly_modulus_degree_; ++i)
             {
-                rings[b][i] = mul_mod(rings[b][i], zeta_powers_by_basis_[b][i], basis_[b]);
+                rings[b][i] = mul_mod(rings[b][i], zeta_powers_by_basis_[b][i], basis_->at(b));
             }
         }
 
         ntt(rings, basis_begin, basis_end);
     }
 
-    void NTT::inverse_ntt_negacyclic(std::vector<std::vector<uint64_t>>& vectors, uint64_t basis_begin, uint64_t basis_end) const
+    void NTT::inverse_ntt_negacyclic(
+        std::vector<std::vector<uint64_t>>& vectors, uint64_t basis_begin, uint64_t basis_end) const
     {
         // Negacyclic INTT (This transformation uses 2n-th primitive root(ζ))
         // 
@@ -253,7 +270,7 @@ namespace cpet
         {
             for (uint64_t j = 0; j < poly_modulus_degree_; ++j)
             {
-                vectors[b][j] = mul_mod(vectors[b][j], inv_zeta_powers_by_basis_[b][j], basis_[b]);
+                vectors[b][j] = mul_mod(vectors[b][j], inv_zeta_powers_by_basis_[b][j], basis_->at(b));
             }
         }
     }

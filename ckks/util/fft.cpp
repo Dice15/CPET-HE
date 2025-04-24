@@ -6,17 +6,28 @@
 
 namespace cpet
 {
-    FFT::FFT(const PolyModulus& poly_modulus) :poly_modulus_degree_(poly_modulus.degree())
+    FFT::FFT() :
+        poly_modulus_degree_(0),
+        bit_reversal_table_({}),
+        zeta_powers_({}),
+        inv_zeta_powers_({}),
+        omega_powers_({}),
+        inv_omega_powers_({})
+    {}
+
+
+    FFT::FFT(uint64_t poly_modulus_degree) : poly_modulus_degree_(poly_modulus_degree)
     {
-        uint64_t poly_modulus_degree_n = poly_modulus_degree_;
-        uint64_t poly_modulus_degree_2n = poly_modulus_degree_n << 1;
+        uint64_t poly_modulus_degree_n = poly_modulus_degree;
+        uint64_t poly_modulus_degree_hn = poly_modulus_degree_n >> 1ULL;
+        uint64_t poly_modulus_degree_2n = poly_modulus_degree_n << 1ULL;
 
 
         // Negacyclic FFT and IFFT (These transformations use 2n-th primitive root(ζ))
         // 
         // X[k] = ∑x[j]*ζ^(j(2k+1)) = ∑x[j]*ζ^(j)*ζ^(2jk), for all k,j ∈ { 0, ... , n-1 }, where n is poly modulus degree
         // 
-        // So, compute powers of ζ, ω, ζ⁻¹, ω⁻¹( where ω=ζ²and ω⁻¹=ζ⁻²are root for standard FFT and IFFT).
+            // So, compute powers of ζ, ω, ζ⁻¹, ω⁻¹( where ω=ζ² and ω⁻¹=ζ⁻² are root for standard FFT and IFFT).
         zeta_powers_.resize(poly_modulus_degree_n);
         inv_zeta_powers_.resize(poly_modulus_degree_n);
         omega_powers_.resize(poly_modulus_degree_n);
@@ -26,7 +37,8 @@ namespace cpet
         {
             compute_root_of_unity(poly_modulus_degree_2n, j, zeta_powers_[j]);
             compute_inverse_root_of_unity(poly_modulus_degree_2n, j, inv_zeta_powers_[j]);
-            compute_root_of_unity(poly_modulus_degree_n, j, omega_powers_[j]);
+
+            compute_root_of_unity(poly_modulus_degree_n, j, omega_powers_[j]);      
             compute_inverse_root_of_unity(poly_modulus_degree_n, j, inv_omega_powers_[j]);
         }
 
@@ -58,10 +70,9 @@ namespace cpet
         }
 
 
+            // [a₀, conj(aₙ₋₁), ... , aₙ₋₁, conj(a₀)] -> [a₀, a₁, ... aₙ₋₁, 0, ... , 0, 0]
         fft_negacyclic(ring);
 
-
-        // [a₀, conj(aₙ₋₁), ... , aₙ₋₁, conj(a₀)] -> [a₀, a₁, ... aₙ₋₁, 0, ... , 0, 0]
         for (uint64_t j = 0; j < poly_modulus_degree_; j += 2)
         {
             ring[j >> 1] = ring[j] / scale;
@@ -80,8 +91,7 @@ namespace cpet
             throw std::invalid_argument("Vector's size is mismatched with fft handler.");
         }
 
-
-        // [a₀, a₁, ... aₙ₋₁, 0, ... , 0, 0] -> [a₀, conj(aₙ₋₁), ... , aₙ₋₁, conj(a₀)]
+            // [a₀, a₁, ... aₙ₋₁, 0, ... , 0, 0] -> [a₀, conj(aₙ₋₁), ... , aₙ₋₁, conj(a₀)]
         for (uint64_t j = (poly_modulus_degree_ >> 1) - 1; j > 0; --j)
         {
             vector[j * 2] = vector[j];
@@ -94,7 +104,7 @@ namespace cpet
 
         inverse_fft_negacyclic(vector);
 
-        for (uint64_t i = 0; i < poly_modulus_degree_; i++)
+        for (uint64_t i = 0; i < poly_modulus_degree_; ++i)
         {
             vector[i] = std::complex<double_t>(vector[i].real() * scale, 0.0);
         }
@@ -176,12 +186,12 @@ namespace cpet
         // X[k] = ∑x[j]*ζ^(j(2k+1)) = ∑x[j]*ζ^(j)*ζ^(2jk), for all k,j ∈ { 0, ... , n-1 }, where n is poly modulus degree
         // 
         // X[0] = x[0]*ζ^(0*1) + x[1]*ζ^(1*1) + x[2]*ζ^(2*1) ... + x[n-1]*ζ^((n-1)*1)
-        // X[1] = x[0]*ζ^(0*5) + x[1]*ζ^(1*3) + x[2]*ζ^(2*3) ... + x[n-1]*ζ^((n-1)*3)
-        // X[2] = x[0]*ζ^(0*9) + x[1]*ζ^(1*5) + x[2]*ζ^(2*5) ... + x[n-1]*ζ^((n-1)*5)
+        // X[1] = x[0]*ζ^(0*3) + x[1]*ζ^(1*3) + x[2]*ζ^(2*3) ... + x[n-1]*ζ^((n-1)*3)
+        // X[2] = x[0]*ζ^(0*5) + x[1]*ζ^(1*5) + x[2]*ζ^(2*5) ... + x[n-1]*ζ^((n-1)*5)
         // ...
         // X[n-1] = x[0]*ζ^(0*(2n-1)) + x[1]*ζ^(1*(2n-1)) + x[2]*ζ^(2*(2n-1)) ... + x[n-1]*ζ^((n-1)*(2n-1))
         // 
-        // So, multiply ζʲ to ring's all coeff and use ζ²as Standard FFT's ω.
+            // So, multiply ζʲ to ring's all coeff and use ζ² as Standard FFT's ω.
         for (uint64_t j = 0; j < poly_modulus_degree_; ++j)
         {
             ring[j] *= zeta_powers_[j];
@@ -202,7 +212,8 @@ namespace cpet
         // ...
         // x[n-1] = 1/n * {X[0]*ζ^-(0*(2n-1)) + X[1]*ζ^-(1*(2n-1)) + X[2]*ζ^-(2*(2n-1)) ... + X[n-1]*ζ^-((n-1)*(2n-1))}
         // 
-        // So, use ζ⁻²as standard IFFT's ω and multiply ζ⁻ʲ to ring's all coeff.
+            // So, use ζ⁻² as standard IFFT's ω and multiply ζ⁻ʲ to ring's all coeff.
+
         inverse_fft(vector);
 
         for (uint64_t j = 0; j < poly_modulus_degree_; ++j)
