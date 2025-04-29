@@ -4,6 +4,7 @@
 #include "basis.h"
 #include <cstdint>
 #include <vector>
+#include <memory>
 
 
 namespace cpet
@@ -13,7 +14,10 @@ namespace cpet
     public:
         NTT();
 
-        NTT(uint64_t poly_modulus_degree, const Basis& basis);
+        NTT(
+            uint64_t poly_modulus_degree, 
+            const Basis& basis
+        );
 
         void ntt_negacyclic(
             std::vector<std::vector<uint64_t>>& rings, uint64_t basis_begin, uint64_t basis_end) const;
@@ -34,9 +38,9 @@ namespace cpet
         void inverse_ntt(
             std::vector<std::vector<uint64_t>>& vectors, uint64_t basis_begin, uint64_t basis_end) const;
 
-        uint64_t poly_modulus_degree_;
+        const uint64_t poly_modulus_degree_;
 
-        const Basis* const basis_;
+        Basis basis_;
 
         std::vector<uint64_t> bit_reversal_table_;
 

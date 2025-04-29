@@ -1,5 +1,6 @@
 #pragma once
 
+#include "arithmod.h"
 #include "rnscycloring.h"
 #include <vector>
 #include <cstdint>
@@ -9,16 +10,16 @@
 
 namespace cpet
 {
-	void sample_ring_from_uniform_dist(
-		uint64_t poly_modulus_degree,
-		const Basis& basis,
-		const std::shared_ptr<const NTT>& ntt_handler,
-		RnsCycloRing& destination
-	) {
+	void sample_from_uniform_dist(RnsCycloRing& destination)
+	{
+		const cpet::Basis& basis = destination.basis();
+		uint64_t poly_modulus_degree = destination.poly_modulus_degree();
+
+		// Create random instance.
 		std::random_device rd;
 		std::mt19937 rand(rd());
-		destination = std::move(RnsCycloRing(poly_modulus_degree, basis, ntt_handler));
 
+		// Sampling
 		for (uint64_t rns_idx = basis.begin(); rns_idx < basis.end(); rns_idx++)
 		{
 			// [0, q-1] 정수 균등 분포 설정.
@@ -28,27 +29,27 @@ namespace cpet
 
 			for (uint64_t coeff_idx = 0; coeff_idx < poly_modulus_degree; coeff_idx++)
 			{
-				destination.set_rns_coeff(rns_idx, coeff_idx, dist(rand));
+				destination.set(rns_idx, coeff_idx, dist(rand));
 			}
 		}
 	}
 
 	// TODO: 이산 가우시안 분포 라이브러리 또는 직접 구현을 해야함. 현재는 임시 코드임.
-	void sample_ring_from_gaussian_dist(
-		uint64_t poly_modulus_degree,
-		const Basis& basis,
-		const std::shared_ptr<const NTT>& ntt_handler,
-		RnsCycloRing& destination
-	) {
+	void sample_from_gaussian_dist(RnsCycloRing& destination)
+	{
+		const cpet::Basis& basis = destination.basis();
+		uint64_t poly_modulus_degree = destination.poly_modulus_degree();
+
+		// Create random instance.
 		std::random_device rd;
 		std::mt19937 rand(rd());
-		destination = std::move(RnsCycloRing(poly_modulus_degree, basis, ntt_handler));
 
-		// 표준편차가 3.2인 가우시안 분포로 설정
+		// 표준편차가 3.2인 가우시안 분포로 설정.
 		double_t e = 0.0;
 		double_t sd = 3.2;
 		std::normal_distribution<double_t> dist(e, sd);
 
+		// Sampling
 		for (uint64_t rns_idx = basis.begin(); rns_idx < basis.end(); rns_idx++)
 		{
 			for (uint64_t coeff_idx = 0; coeff_idx < poly_modulus_degree; coeff_idx++)
@@ -60,20 +61,19 @@ namespace cpet
 					r = negate_mod(static_cast<uint64_t>(std::abs(std::llround(r))), basis.at(rns_idx));
 				}
 
-				destination.set_rns_coeff(rns_idx, coeff_idx, r);
+				destination.set(rns_idx, coeff_idx, r);
 			}
 		}
 	}
 
-	void sample_ring_from_hamming_dist(
-		uint64_t poly_modulus_degree,
-		const Basis& basis,
-		const std::shared_ptr<const NTT>& ntt_handler,
-		RnsCycloRing& destination
-	) {
+	void sample_from_hamming_dist(RnsCycloRing& destination)
+	{
+		const cpet::Basis& basis = destination.basis();
+		uint64_t poly_modulus_degree = destination.poly_modulus_degree();
+
+		// Create random instance.
 		std::random_device rd;
 		std::mt19937 rand(rd());
-		destination = std::move(RnsCycloRing(poly_modulus_degree, basis, ntt_handler));
 
 		// h = 64
 		uint64_t h = std::min(64ULL, poly_modulus_degree);
@@ -97,20 +97,19 @@ namespace cpet
 					r = basis.at(rns_idx) - 1ULL;
 				}
 
-				destination.set_rns_coeff(rns_idx, coeff_idx[i], r);
+				destination.set(rns_idx, coeff_idx[i], r);
 			}
 		}
 	}
 
-	void sample_ring_from_zero_one_dist(
-		uint64_t poly_modulus_degree,
-		const Basis& basis,
-		const std::shared_ptr<const NTT>& ntt_handler,
-		RnsCycloRing& destination
-	) {
+	void sample_from_zero_one_dist(RnsCycloRing& destination)
+	{
+		const cpet::Basis& basis = destination.basis();
+		uint64_t poly_modulus_degree = destination.poly_modulus_degree();
+
+		// Create random instance.
 		std::random_device rd;
 		std::mt19937 rand(rd());
-		destination = std::move(RnsCycloRing(poly_modulus_degree, basis, ntt_handler));
 
 		// [0.0, 1.0] 실수 균등 분포 설정.
 		std::uniform_real_distribution<double_t> dist(0.0, 1.0);
@@ -131,10 +130,10 @@ namespace cpet
 				}
 				else
 				{
-					r= 0ULL;
+					r = 0ULL;
 				}
 
-				destination.set_rns_coeff(rns_idx, coeff_idx, r);
+				destination.set(rns_idx, coeff_idx, r);
 			}
 		}
 	}

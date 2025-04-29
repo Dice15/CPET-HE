@@ -6,258 +6,237 @@
 namespace cpet
 {
 	Text::Text() :
-		scale_(1.0),
-		basis_(nullptr),
-		rings_({})
+		scale_(0.0),
+		poly_modulus_degree_(0),
+		basis_(Basis()),
+		rings_({}),
+		form_(RnsCycloRing::Form::coeff),
+		ntt_handler_(nullptr)
 	{}
 
 	Text::Text(
 		double_t scale,
 		uint64_t poly_modulus_degree,
 		const Basis& basis,
-		const std::shared_ptr<const NTT>& ntt_handler,
-		uint64_t size
+		uint64_t dimension,
+		RnsCycloRing::Form default_form,
+		const std::shared_ptr<const NTT>& ntt_handler
 	) :
 		scale_(scale),
-		basis_(&basis),
-		rings_(std::vector<RnsCycloRing>(size, RnsCycloRing(poly_modulus_degree, basis, ntt_handler)))
+		poly_modulus_degree_(poly_modulus_degree),
+		basis_(basis),
+		rings_(std::vector<RnsCycloRing>(dimension, RnsCycloRing(scale, poly_modulus_degree, basis, default_form, ntt_handler))),
+		form_(default_form),
+		ntt_handler_(ntt_handler)
 	{}
 
-	const RnsCycloRing& Text::get_ring(uint64_t slot_idx) const
+	const RnsCycloRing& Text::get(uint64_t index) const
 	{
-		if (rings_.size() <= slot_idx)
+		if (dimension() <= index)
 		{
-			throw std::out_of_range("Out of range.");
+			throw std::out_of_range("Index out of range.");
 		}
 
-		return rings_[slot_idx];
+		return rings_[index];
 	}
 
-	void Text::set_ring(uint64_t slot_idx, const RnsCycloRing& ring)
+	void Text::set(uint64_t index, const RnsCycloRing& ring)
 	{
-		if (rings_.size() <= slot_idx)
+		if (dimension() <= index)
 		{
-			throw std::out_of_range("Out of range.");
+			throw std::out_of_range("Index out of range.");
 		}
 
-		if (*basis_ != ring.get_basis())
+		if (scale_ != ring.scale() || poly_modulus_degree_ != ring.poly_modulus_degree() || basis_ != ring.basis() || form_ != ring.form())
 		{
-			throw std::out_of_range("Basis is mismatched.");
+			throw std::out_of_range("Parameter is mismatched.");
 		}
 
-		rings_[slot_idx](ring);
+		// TODO
 	}
 
-	double_t Text::get_scale() const
+	double_t Text::scale() const
 	{
 		return scale_;
 	}
 
-	void Text::set_scale(double_t scale)
+	uint64_t Text::poly_modulus_degree() const
 	{
-		scale_ = scale;
+		return poly_modulus_degree_;
 	}
 
-	const Basis* Text::get_basis() const
+	const Basis& Text::basis() const
 	{
 		return basis_;
 	}
 
-	void Text::set_basis(Basis basis)
-	{
-		for (uint64_t slot_idx = 0; slot_idx < rings_.size(); ++slot_idx)
-		{
-			rings_[slot_idx].set_basis(basis_);
-		}
-	}
-
-	uint64_t Text::size() const
+	uint64_t Text::dimension() const
 	{
 		return rings_.size();
 	}
 
-	void Text::set_ntt_form()
+	RnsCycloRing::Form Text::form() const
 	{
-		for (uint64_t slot_idx = 0; slot_idx < rings_.size(); ++slot_idx)
+		return form_;
+	}
+
+	void Text::coeff_to_slot()
+	{
+		for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
 		{
-			rings_[slot_idx].set_ntt_form();
+			rings_[dim_idx].coeff_to_slot();
 		}
 	}
 
-	void Text::set_normal_form()
+	void Text::modulus_reduction()
 	{
-		for (uint64_t slot_idx = 0; slot_idx < rings_.size(); ++slot_idx)
+		for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
 		{
-			rings_[slot_idx].set_normal_form();
+			rings_[dim_idx].modulus_reduction();
+		}
+
+		basis_.drop_basis();
+	}
+
+	void Text::rescale()
+	{
+		for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
+		{
+			rings_[dim_idx].rescale();
+		}
+
+		scale_ /= basis_.at(basis_.end() - 1);
+		basis_.drop_basis();
+	}
+
+	void Text::convert_scale_force(double_t scale)
+	{
+		scale_ = scale;
+	}
+
+	void Text::convert_basis_force(Basis::Type type)
+	{
+		for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
+		{
+			rings_[dim_idx].convert_basis_force(type);
+		}
+
+		basis_.convert_basis(type);
+	}
+
+	void Text::convert_basis_approximate(Basis::Type type)
+	{
+		for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
+		{
+			rings_[dim_idx].convert_basis_approximate(type);
+		}
+
+		basis_.convert_basis(type);
+	}
+
+	void Text::slot_to_coeff()
+	{
+		for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
+		{
+			rings_[dim_idx].slot_to_coeff();
 		}
 	}
 
-
-
-	/// <summary>
-	/// ///////////////////
-	/// </summary>
-
-
-
-	Plaintext::Plaintext() : Text() {}
-
-	Plaintext::Plaintext(
-		double_t scale,
-		uint64_t poly_modulus_degree,
-		const Basis& basis,
-		const std::shared_ptr<const NTT>& ntt_handler
-	) :
-		Text(scale, poly_modulus_degree, basis, ntt_handler, 1)
-	{}
-
-	void Plaintext::add_with(const Plaintext& other)
+	void Text::add_inplace(const Text& other)
 	{
-		if (scale_ != other.scale_)
+		if (scale_ != other.scale_ || poly_modulus_degree_ != other.poly_modulus_degree_ || basis_ != other.basis_ || form_ != other.form_)
 		{
-			throw std::invalid_argument("Scale of texts must be matched.");
+			throw std::out_of_range("Parameter is mismatched.");
 		}
 
-		for (uint64_t slot_idx = 0; slot_idx < rings_.size(); ++slot_idx)
+		if (dimension() == other.dimension())
 		{
-			rings_[slot_idx].add_inplace(other.rings_[slot_idx]);
+			for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
+			{
+				rings_[dim_idx].add_inplace(other.rings_[dim_idx]);
+			}
+		}
+		else if (dimension() < other.dimension())
+		{
+			rings_.resize(other.dimension(), RnsCycloRing(scale_, poly_modulus_degree_, basis_, form_, ntt_handler_));
+
+			for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
+			{
+				rings_[dim_idx].add_inplace(other.rings_[dim_idx]);
+			}
+		}
+		else
+		{
+			for (uint64_t dim_idx = 0; dim_idx < other.dimension(); ++dim_idx)
+			{
+				rings_[dim_idx].add_inplace(other.rings_[dim_idx]);
+			}
 		}
 	}
 
-	void Plaintext::sub_with(const Plaintext& other)
+	void Text::sub_inplace(const Text& other)
 	{
-		if (scale_ != other.scale_)
+		if (scale_ != other.scale_ || poly_modulus_degree_ != other.poly_modulus_degree_ || basis_ != other.basis_ || form_ != other.form_)
 		{
-			throw std::invalid_argument("Scale of texts must be matched.");
+			throw std::out_of_range("Parameter is mismatched.");
 		}
 
-		for (uint64_t slot_idx = 0; slot_idx < rings_.size(); ++slot_idx)
+		if (dimension() == other.dimension())
 		{
-			rings_[slot_idx].sub_inplace(other.rings_[slot_idx]);
+			for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
+			{
+				rings_[dim_idx].sub_inplace(other.rings_[dim_idx]);
+			}
+		}
+		else if (dimension() < other.dimension())
+		{
+			rings_.resize(other.dimension(), RnsCycloRing(scale_, poly_modulus_degree_, basis_, form_, ntt_handler_));
+
+			for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
+			{
+				rings_[dim_idx].sub_inplace(other.rings_[dim_idx]);
+			}
+		}
+		else
+		{
+			for (uint64_t dim_idx = 0; dim_idx < other.dimension(); ++dim_idx)
+			{
+				rings_[dim_idx].sub_inplace(other.rings_[dim_idx]);
+			}
 		}
 	}
 
-	void Plaintext::tensor_with(const Plaintext& other)
+	void Text::mul_inplace(const Text& other)
 	{
-		rings_[0].mul_inplace(other.rings_[0]);
+		if (poly_modulus_degree_ != other.poly_modulus_degree_ || basis_ != other.basis_ || form_ != other.form_)
+		{
+			throw std::out_of_range("Parameter is mismatched.");
+		}
+
+		if (dimension() == other.dimension())
+		{
+			for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
+			{
+				rings_[dim_idx].mul_inplace(other.rings_[dim_idx]);
+			}
+		}
+		else if (dimension() < other.dimension())
+		{
+			rings_.resize(other.dimension(), RnsCycloRing(scale_, poly_modulus_degree_, basis_, form_, ntt_handler_));
+
+			for (uint64_t dim_idx = 0; dim_idx < dimension(); ++dim_idx)
+			{
+				rings_[dim_idx].mul_inplace(other.rings_[dim_idx]);
+			}
+		}
+		else
+		{
+			for (uint64_t dim_idx = 0; dim_idx < other.dimension(); ++dim_idx)
+			{
+				rings_[dim_idx].mul_inplace(other.rings_[dim_idx]);
+			}
+		}
+
 		scale_ *= other.scale_;
 	}
-
-
-
-	/// <summary>
-	/// ///////////////////
-	/// </summary>
-
-
-
-	Ciphertext::Ciphertext() : Text() {}
-
-	Ciphertext::Ciphertext(
-		double_t scale,
-		uint64_t poly_modulus_degree,
-		const Basis& basis,
-		const std::shared_ptr<const NTT>& ntt_handler
-	) :
-		Text(scale, poly_modulus_degree, basis, ntt_handler, 2)
-	{}
-
-	void Ciphertext::add_with(const Ciphertext& other)
-	{
-		if (scale_ != other.scale_)
-		{
-			throw std::invalid_argument("Scale of texts must be matched.");
-		}
-
-		for (uint64_t slot_idx = 0; slot_idx < rings_.size(); ++slot_idx)
-		{
-			rings_[slot_idx].add_inplace(other.rings_[slot_idx]);
-		}
-	}
-
-	void Ciphertext::sub_with(const Ciphertext& other)
-	{
-		if (scale_ != other.scale_)
-		{
-			throw std::invalid_argument("Scale of texts must be matched.");
-		}
-
-		for (uint64_t slot_idx = 0; slot_idx < rings_.size(); ++slot_idx)
-		{
-			rings_[slot_idx].sub_inplace(other.rings_[slot_idx]);
-		}
-	}
-
-	void Ciphertext::tensor_with(const Ciphertext& other)
-	{
-		if (rings_.size() != 2 || other.rings_.size() != 2)
-		{
-			throw std::invalid_argument("Only size of text 2 can be tensor product.");
-		}
-
-		RnsCycloRing ring_0 = rings_[0];
-
-		rings_.resize(3);
-		rings_[0].mul_inplace(other.rings_[0]);
-		rings_[1].mul_inplace(other.rings_[0]);
-		ring_0.mul_inplace(other.rings_[1]);
-		rings_[1].add_inplace(ring_0);
-		rings_[2].mul_inplace(other.rings_[0]);
-
-		scale_ *= other.scale_;
-	}
-
-
-
-	/// <summary>
-	/// ///////////////////
-	/// </summary>
-
-
-
-	SecretKey::SecretKey() : Text() {}
-
-	SecretKey::SecretKey(
-		uint64_t poly_modulus_degree,
-		const Basis& basis,
-		const std::shared_ptr<const NTT>& ntt_handler
-	) :
-		Text(1.0, poly_modulus_degree, basis, ntt_handler, 2)
-	{}
-
-
-
-	/// <summary>
-	/// ///////////////////
-	/// </summary>
-
-
-
-	PublicKey::PublicKey() : Text() {}
-
-	PublicKey::PublicKey(
-		uint64_t poly_modulus_degree,
-		const Basis& basis,
-		const std::shared_ptr<const NTT>& ntt_handler
-	) :
-		Text(1.0, poly_modulus_degree, basis, ntt_handler, 2)
-	{}
-
-
-
-	/// <summary>
-	/// ///////////////////
-	/// </summary>
-
-
-
-	EvaluateKey::EvaluateKey() : Text() {}
-
-	EvaluateKey::EvaluateKey(
-		uint64_t poly_modulus_degree,
-		const Basis& basis,
-		const std::shared_ptr<const NTT>& ntt_handler
-	) :
-		Text(1.0, poly_modulus_degree, basis, ntt_handler, 2)
-	{}
 }

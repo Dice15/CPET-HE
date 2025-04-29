@@ -12,27 +12,31 @@ namespace cpet
 	class CycloRing
 	{
 	public:
-		CycloRing() = default;
+		enum class Form : bool { slot, coeff };
+
+
+	public:
+		CycloRing();
 
 		CycloRing(
-			const PolyModulus& poly_modulus, 
-			const std::shared_ptr<const FFT>& fft_handler, 
-			const std::complex<double_t>& value = { 0.0, 0.0 });
-
-		const std::complex<double_t>& operator()(uint64_t index) const;
-
-		void operator()(uint64_t index, const std::complex<double_t>& value);
-
-		void assign(
-			const PolyModulus& poly_modulus,
+			uint64_t poly_modulus_degree,
 			const std::shared_ptr<const FFT>& fft_handler,
-			const std::complex<double_t>& value = { 0.0, 0.0 });
+			CycloRing::Form form
+		);
+
+		void operator()(const CycloRing& other);
+
+		const std::complex<double_t>& get(uint64_t coeff_idx) const;
+
+		void set(uint64_t coeff_idx, const std::complex<double_t>& value);
 
 		uint64_t poly_modulus_degree() const;
 
-		void set_ifft_form(double_t scale);
+		CycloRing::Form form() const;
 
-		void set_normal_form(double_t scale);
+		void slot_to_coeff(double_t scale);
+
+		void coeff_to_slot(double_t scale);
 
 	private:
 		uint64_t poly_modulus_degree_;
@@ -41,6 +45,6 @@ namespace cpet
 
 		std::shared_ptr<const FFT> fft_handler_;
 
-		bool ifft_form_;
+		CycloRing::Form form_;
 	};
 }

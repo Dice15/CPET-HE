@@ -10,16 +10,17 @@ namespace cpet
 {
 	Basis::Basis() :
 		constant_(nullptr),
-		basis_type_(BasisType::basis_q),
+		basis_type_(Basis::Type::Q),
 		drop_q_count_(0)
 	{}
 
 	Basis::Basis(
 		uint64_t poly_modulus_degree,
+		Basis::Type default_type,
 		const std::vector<uint64_t>& moduli_p_bit_sizes,
 		const std::vector<uint64_t>& moduli_q_bit_sizes
 	) :
-		basis_type_(BasisType::basis_q),
+		basis_type_(default_type),
 		drop_q_count_(0)
 	{
 		// Check count of basis.
@@ -101,10 +102,10 @@ namespace cpet
 
 
 		// Compute the constants for fast basis convert (p <-> q)
-		constant.P_mod_ql_.resize(moduli_q_bit_sizes.size());
-		constant.inv_P_mod_ql_.resize(moduli_q_bit_sizes.size());
+		constant.P_mod_p_and_q_.resize(moduli_q_bit_sizes.size());
+		constant.inv_P_mod_q_.resize(moduli_q_bit_sizes.size());
 		constant.inv_p_hats_mod_p.resize(moduli_p_bit_sizes.size());
-		constant.p_hats_mod_ql_.resize(moduli_p_bit_sizes.size(), std::vector<uint64_t>(moduli_q_bit_sizes.size()));
+		constant.p_hats_mod_q_.resize(moduli_p_bit_sizes.size(), std::vector<uint64_t>(moduli_q_bit_sizes.size()));
 
 		for (uint64_t i = 0; i < moduli_p_bit_sizes.size(); i++)
 		{
@@ -143,21 +144,21 @@ namespace cpet
 					p_hat_q_j = mul_mod(p_hat_q_j, moduli_p[ii], moduli_q[j]);
 				}
 
-				constant.p_hats_mod_ql_[i][j] = p_hat_q_j;
+				constant.p_hats_mod_q_[i][j] = p_hat_q_j;
 			}
 	
-			constant.P_mod_ql_[j] = P_q_j;
-			constant.inv_P_mod_ql_[j] = inverse_mod(P_q_j, moduli_q[j]);
+			constant.P_mod_p_and_q_[j] = P_q_j;
+			constant.inv_P_mod_q_[j] = inverse_mod(P_q_j, moduli_q[j]);
 		}
 
 
 		// Compute the constants fast basis convert (p <-> q)
-		constant.inv_ql_hats_mod_ql_.resize(moduli_q_bit_sizes.size());
-		constant.ql_hats_mod_p.resize(moduli_q_bit_sizes.size());
+		constant.inv_q_hats_mod_q_by_lev_.resize(moduli_q_bit_sizes.size());
+		constant.q_hats_mod_p_by_lev.resize(moduli_q_bit_sizes.size());
 
 		for (uint64_t l = 0; l < moduli_q_bit_sizes.size(); l++)
 		{
-			constant.inv_ql_hats_mod_ql_[l].resize(l + 1);
+			constant.inv_q_hats_mod_q_by_lev_[l].resize(l + 1);
 
 			for (uint64_t j = 0; j <= l; j++)
 			{
@@ -173,13 +174,13 @@ namespace cpet
 					q_l_hat_q_j = mul_mod(q_l_hat_q_j, moduli_q[jj], moduli_q[j]);
 				}
 
-				constant.inv_ql_hats_mod_ql_[l][j] = inverse_mod(q_l_hat_q_j, moduli_q[j]);
+				constant.inv_q_hats_mod_q_by_lev_[l][j] = inverse_mod(q_l_hat_q_j, moduli_q[j]);
 			}
 		}
 
 		for (uint64_t l = 0; l < moduli_q_bit_sizes.size(); l++)
 		{
-			constant.ql_hats_mod_p[l].resize(l + 1, std::vector<uint64_t>(moduli_p_bit_sizes.size()));
+			constant.q_hats_mod_p_by_lev[l].resize(l + 1, std::vector<uint64_t>(moduli_p_bit_sizes.size()));
 
 			for (uint64_t i = 0; i < moduli_p_bit_sizes.size(); i++)
 			{
@@ -197,7 +198,7 @@ namespace cpet
 						q_l_hat_p_i = mul_mod(q_l_hat_p_i, moduli_q[jj], moduli_p[i]);
 					}
 
-					constant.ql_hats_mod_p[l][j][i] = q_l_hat_p_i;
+					constant.q_hats_mod_p_by_lev[l][j][i] = q_l_hat_p_i;
 				}
 			}
 		}
@@ -209,26 +210,42 @@ namespace cpet
 
 	bool Basis::operator==(const Basis& other) const
 	{
-		return constant_ == other.constant_
-			&& basis_type_ == other.basis_type_
-			&& drop_q_count_ == other.drop_q_count_;
+		if (constant_ != other.constant_ || basis_type_ != other.basis_type_)
+		{
+			throw std::out_of_range("Constant and type of basis is mismatched.");
+		}
+
+		return drop_q_count_ == other.drop_q_count_;
 	}
 
 	bool Basis::operator!=(const Basis& other) const
 	{
-		return constant_ != other.constant_
-			|| basis_type_ != other.basis_type_
-			|| drop_q_count_ != other.drop_q_count_;
+		if (constant_ != other.constant_ || basis_type_ != other.basis_type_)
+		{
+			throw std::out_of_range("Constant and type of basis is mismatched.");
+		}
+
+		return drop_q_count_ != other.drop_q_count_;
 	}
 
-	Basis::BasisType Basis::get_type() const
+	bool Basis::operator<(const Basis& other) const
 	{
-		return basis_type_;
+		if (constant_ != other.constant_ || basis_type_ != other.basis_type_)
+		{
+			throw std::out_of_range("Constant and type of basis is mismatched.");
+		}
+
+		return drop_q_count_ > other.drop_q_count_;
 	}
 
-	void Basis::set_type(BasisType basis_type)
+	bool Basis::operator>(const Basis& other) const
 	{
-		basis_type_ = basis_type;
+		if (constant_ != other.constant_ || basis_type_ != other.basis_type_)
+		{
+			throw std::out_of_range("Constant and type of basis is mismatched.");
+		}
+
+		return drop_q_count_ < other.drop_q_count_;
 	}
 
 	const std::vector<uint64_t>& Basis::get_moduli() const
@@ -240,11 +257,11 @@ namespace cpet
 	{
 		switch (basis_type_)
 		{
-		case BasisType::basis_q: 
+		case Basis::Type::Q:
 		{
 			return constant_->q_begin_;
 		}
-		case BasisType::basis_pq:
+		case Basis::Type::PQ:
 		{
 			return constant_->p_begin_;
 		}
@@ -257,11 +274,11 @@ namespace cpet
 	{
 		switch (basis_type_)
 		{
-		case BasisType::basis_q:
+		case Basis::Type::Q:
 		{
 			return constant_->q_end_ - drop_q_count_;
 		}
-		case BasisType::basis_pq:
+		case Basis::Type::PQ:
 		{
 			return constant_->q_end_ - drop_q_count_;
 		}
@@ -275,22 +292,12 @@ namespace cpet
 		return end() - begin();
 	}
 
-	uint64_t Basis::capacity() const
+	uint64_t Basis::level() const
 	{
-		return constant_->q_end_;
+		return constant_->q_end_ - constant_->q_begin_ - drop_q_count_;
 	}
 
-	uint64_t Basis::at(uint64_t index) const
-	{
-		if (index < begin() || end() <= index)
-		{
-			throw std::out_of_range("Index out of range.");
-		}
-
-		return constant_->moduli_[index];
-	}
-
-	void Basis::drop_q()
+	void Basis::drop_basis()
 	{
 		if (static_cast<int64_t>(constant_->q_end_) - ++drop_q_count_ == constant_->q_begin_)
 		{
@@ -298,33 +305,98 @@ namespace cpet
 		}
 	}
 
-	const std::vector<uint64_t>& Basis::P_mod_ql() const
+	Basis::Type Basis::get_basis_type() const
 	{
-		return constant_->P_mod_ql_;
+		return basis_type_;
 	}
 
-	const std::vector<uint64_t>& Basis::inv_P_mod_ql() const
+	void Basis::convert_basis(Basis::Type basis_type)
 	{
-		return constant_->inv_P_mod_ql_;
+		basis_type_ = basis_type;
 	}
 
-	const std::vector<uint64_t>& Basis::inv_p_hats_mod_p() const
+	uint64_t Basis::capacity() const
 	{
-		return constant_->inv_p_hats_mod_p;
+		return constant_->q_end_;
 	}
 
-	const std::vector<std::vector<uint64_t>>& Basis::p_hats_mod_ql() const
+	uint64_t Basis::at(uint64_t basis_idx) const
 	{
-		return constant_->p_hats_mod_ql_;
+		if (constant_->q_end_ <= basis_idx)
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		return constant_->moduli_[basis_idx];
 	}
 
-	const std::vector<uint64_t>& Basis::inv_ql_hats_mod_ql() const
+	uint64_t Basis::P_mod_p_and_q(uint64_t basis_idx) const
 	{
-		return constant_->inv_ql_hats_mod_ql_[constant_->q_end_ - constant_->q_begin_ - 1ULL];
+		if (constant_->q_end_ <= basis_idx)
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		return basis_idx < constant_->q_begin_ ? 0 : constant_->P_mod_p_and_q_[basis_idx - constant_->q_begin_];
 	}
 
-	const std::vector<std::vector<uint64_t>>& Basis::ql_hats_mod_p() const
+	uint64_t Basis::inv_P_mod_q(uint64_t basis_q_idx) const
 	{
-		return constant_->ql_hats_mod_p[constant_->q_end_ - constant_->q_begin_ - 1ULL];
+		if (basis_q_idx < constant_->q_begin_ || constant_->q_end_ <= basis_q_idx)
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		return constant_->inv_P_mod_q_[basis_q_idx - constant_->q_begin_];
+	}
+
+	uint64_t Basis::inv_p_hats_mod_p(uint64_t basis_p_idx) const
+	{
+		if (basis_p_idx < constant_->p_begin_ || constant_->p_end_ <= basis_p_idx)
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		return constant_->inv_p_hats_mod_p[basis_p_idx];
+	}
+
+	uint64_t Basis::p_hats_mod_q(uint64_t basis_p_idx, uint64_t basis_q_idx) const
+	{
+		if (basis_p_idx < constant_->p_begin_ || constant_->p_end_ <= basis_p_idx)
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		if (basis_q_idx < constant_->q_begin_ || constant_->q_end_ <= basis_q_idx)
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		return constant_->p_hats_mod_q_[basis_p_idx][basis_q_idx - constant_->q_begin_];
+	}
+
+	uint64_t Basis::inv_q_hats_mod_q(uint64_t basis_q_idx) const
+	{
+		if (basis_q_idx < constant_->q_begin_ || constant_->q_end_ <= basis_q_idx)
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		return constant_->inv_q_hats_mod_q_by_lev_[level() - 1][basis_q_idx - constant_->q_begin_];
+	}
+
+	uint64_t Basis::q_hats_mod_p(uint64_t basis_q_idx, uint64_t basis_p_idx) const
+	{
+		if (basis_q_idx < constant_->q_begin_ || constant_->q_end_ <= basis_q_idx)
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		if (basis_p_idx < constant_->p_begin_ || constant_->p_end_ <= basis_p_idx)
+		{
+			throw std::out_of_range("Index out of range.");
+		}
+
+		return constant_->q_hats_mod_p_by_lev[level() - 1][basis_q_idx - constant_->q_begin_][basis_p_idx];
 	}
 }

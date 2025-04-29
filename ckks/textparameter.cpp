@@ -36,7 +36,7 @@ namespace cpet
 		TextParameter param;
 
 		param.basis_ = std::make_shared<const Basis>(basis);
-		basis.drop_q();
+		basis.drop_basis();
 		param.next_param_ = internal_create_parameter_chain(basis, last_param);
 
 		if (param.next_param_ == nullptr)

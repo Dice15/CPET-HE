@@ -9,7 +9,7 @@ namespace cpet
 {
     NTT::NTT() :
         poly_modulus_degree_(0),
-        basis_(nullptr),
+        basis_(Basis()),
         bit_reversal_table_({}),
         zeta_powers_by_basis_({}),
         inv_zeta_powers_by_basis_({}),
@@ -17,9 +17,12 @@ namespace cpet
         inv_omega_powers_by_basis_({})
     {}
 
-    NTT::NTT(uint64_t poly_modulus_degree, const Basis& basis) :
+    NTT::NTT(
+        uint64_t poly_modulus_degree, 
+        const Basis& basis
+    ) :
         poly_modulus_degree_(poly_modulus_degree),
-        basis_(&basis)
+        basis_(basis)
     {
         uint64_t poly_modulus_degree_n = poly_modulus_degree;
         uint64_t poly_modulus_degree_2n = poly_modulus_degree_n << 1;
@@ -50,7 +53,6 @@ namespace cpet
 
             zeta_powers_by_basis_[b][0] = 1;
             inv_zeta_powers_by_basis_[b][0] = 1;
-
             omega_powers_by_basis_[b][0] = 1;
             inv_omega_powers_by_basis_[b][0] = 1;
 
@@ -58,7 +60,6 @@ namespace cpet
             {
                 zeta_powers_by_basis_[b][j] = mul_mod(zeta_powers_by_basis_[b][j - 1], zeta, basis.at(b));
                 inv_zeta_powers_by_basis_[b][j] = mul_mod(inv_zeta_powers_by_basis_[b][j - 1], inv_zeta, basis.at(b));
-
                 omega_powers_by_basis_[b][j] = mul_mod(omega_powers_by_basis_[b][j - 1], omaga, basis.at(b));
                 inv_omega_powers_by_basis_[b][j] = mul_mod(inv_omega_powers_by_basis_[b][j - 1], inv_omaga, basis.at(b));
             }
@@ -194,10 +195,10 @@ namespace cpet
                     for (size_t j = 0; j < (len >> 1); j++)
                     {
                         uint64_t u = rings[b][i + j];
-                        uint64_t v = mul_mod(rings[b][i + j + (len >> 1)], omega_powers[b][exponent], basis_->at(b));
+                        uint64_t v = mul_mod(rings[b][i + j + (len >> 1)], omega_powers[b][exponent], basis_.at(b));
 
-                        rings[b][i + j] = add_mod(u, v, basis_->at(b));
-                        rings[b][i + j + (len >> 1)] = sub_mod(u, v, basis_->at(b));
+                        rings[b][i + j] = add_mod(u, v, basis_.at(b));
+                        rings[b][i + j + (len >> 1)] = sub_mod(u, v, basis_.at(b));
 
                         exponent += exponent_len;
                     }
@@ -216,11 +217,11 @@ namespace cpet
         // Scaling coeff to 1/n * coeff, where n is poly modulus degree.
         for (uint64_t b = basis_begin; b < basis_end; ++b)
         {
-            uint64_t n_inv = inverse_mod(poly_modulus_degree_, basis_->at(b));
+            uint64_t n_inv = inverse_mod(poly_modulus_degree_, basis_.at(b));
 
             for (size_t i = 0; i < poly_modulus_degree_; i++)
             {
-                vectors[b][i] = mul_mod(vectors[b][i], n_inv, basis_->at(b));
+                vectors[b][i] = mul_mod(vectors[b][i], n_inv, basis_.at(b));
             }
         }
     }
@@ -243,7 +244,7 @@ namespace cpet
         {
             for (uint64_t i = 0; i < poly_modulus_degree_; ++i)
             {
-                rings[b][i] = mul_mod(rings[b][i], zeta_powers_by_basis_[b][i], basis_->at(b));
+                rings[b][i] = mul_mod(rings[b][i], zeta_powers_by_basis_[b][i], basis_.at(b));
             }
         }
 
@@ -270,7 +271,7 @@ namespace cpet
         {
             for (uint64_t j = 0; j < poly_modulus_degree_; ++j)
             {
-                vectors[b][j] = mul_mod(vectors[b][j], inv_zeta_powers_by_basis_[b][j], basis_->at(b));
+                vectors[b][j] = mul_mod(vectors[b][j], inv_zeta_powers_by_basis_[b][j], basis_.at(b));
             }
         }
     }

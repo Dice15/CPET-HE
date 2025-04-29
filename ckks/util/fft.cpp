@@ -37,7 +37,6 @@ namespace cpet
         {
             compute_root_of_unity(poly_modulus_degree_2n, j, zeta_powers_[j]);
             compute_inverse_root_of_unity(poly_modulus_degree_2n, j, inv_zeta_powers_[j]);
-
             compute_root_of_unity(poly_modulus_degree_n, j, omega_powers_[j]);      
             compute_inverse_root_of_unity(poly_modulus_degree_n, j, inv_omega_powers_[j]);
         }
